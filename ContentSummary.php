@@ -1,11 +1,11 @@
 <?php
 /**
  * WTP TYPO3 Content Summary
- * v0.7c
+ * v0.8
  * WTP / wolo.pl '.' studio 2021
  * 
  * - Prepare a clear table of found content types, plugins, FCEs, frames.
- * - What is used where and how many of them... (...you have to repair, if they're broken.)
+ * - What is used where and how many of them (...you'll have to repair, if you broke it.)
  * - Get direct links to each type examples - find them all quickly to control if they still work after update.
  * - Whether that cave-era-accordion, which uses that old problematic js lib, is really still needed.
  * - Analyze chart of rootline parents of all pages found containing selected contenttype/plugin to check if
@@ -16,26 +16,28 @@
  *      in AdditionalConfiguration_host.php. That way you have database configuration. Or put the db credentials 
  *      here (in 8.x format) and call file directly.
  * 
+ * 			- NOTE - set $GLOBALS['ContentSummaryConfig']['versionCompat'] below, if needed!
+ * 
  *   Q: Which TYPO3 versions/branches does it support?
  *   A: These which have fields list_type and Ctype in tt_content table, so basically all since 4.x to 10.x should work.
- *      Only the Frames section will not show where the field had its previous name before change. I think it was 
- *      in 7.x maybe, but I didn't try. You only must set the database credentials in the format like below / 8.x form.  
+ *		You only must set the database credentials in the format like below / 8.x form.  
  */
 
-// Include this file on the end of AdditionalConfiguration.php to connect automatically.
-// If you'd rather run it standalone, uncomment and configure credentials here:
-//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
-//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
-//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
-//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
-
+// Uncomment when needed
+$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
+$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
+$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
+$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
 
 error_reporting(E_ALL ^ E_WARNING ^ E_NOTICE);
 
 
 // Config
 $GLOBALS['ContentSummaryConfig'] = [
-    
+
+	// typo3 major version - to auto handle db structure differences, like frame class or templavoila naming
+	'versionCompat' => 10,
+
     // for handy links feature. set own by hand, if bad url in subdir-projects
     'baseDomain' => 'https://' . $_SERVER['HTTP_HOST'],
 
@@ -44,7 +46,7 @@ $GLOBALS['ContentSummaryConfig'] = [
     'autosaveCSV' => 1,
     
     // where to save, if not to current dir
-    'fileDumpPath' => '',
+    'fileDumpPath' => '', 
 ];
 
 
@@ -55,6 +57,13 @@ $GLOBALS['ContentSummaryConfig'] = [
  * Where the whole magic happens
  */
 class ContentSummary	{
+	
+	// version compatibility values
+	public $TV_PREFIX = 'tx_templavoilaplus';
+	public $TV_CTYPE = 'templavoilaplus_pi1';
+	public $TT_FRAME = 'frame_class';
+
+
 	
 	/** @var PDO */
 	protected $db;
@@ -80,6 +89,12 @@ class ContentSummary	{
         // connect to db
 		$this->databaseConnect();
 		defined('LF') ?: define('LF', chr(10));
+		
+		if ($GLOBALS['ContentSummaryConfig']['versionCompat'] == 6)	{
+			$this->TV_PREFIX = 'tx_templavoila';
+			$this->TV_CTYPE = 'templavoila_pi1';
+			$this->TT_FRAME = 'section_frame';
+		}
 	}
 	
 
@@ -196,42 +211,42 @@ class ContentSummary	{
 		// SECTION: TemplaVoila FCEs
 
 		try {
-		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'tx_templavoilaplus_ds'")->fetchAll())) {
+		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE '{$this->TV_PREFIX}_ds'")->fetchAll())) {
 		    
                 $query = $this->db->prepare("
-                    SELECT t.tx_templavoilaplus_ds, COUNT(t.uid) AS count_use, 
+                    SELECT t.{$this->TV_PREFIX}_ds, COUNT(t.uid) AS count_use, 
                         GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
                     FROM `tt_content` AS t
                         JOIN `pages` AS p ON p.uid = t.pid
-                    WHERE t.CType = 'templavoilaplus_pi1'
+                    WHERE t.CType = '{$this->TV_CTYPE}'
                         AND NOT t.deleted 		# AND NOT t.hidden 
                         AND NOT p.deleted
-                    GROUP BY t.tx_templavoilaplus_ds
+                    GROUP BY t.{$this->TV_PREFIX}_ds
                 ");
                 $query->execute();
                 $query->setFetchMode(PDO::FETCH_ASSOC);
-                $this->data['tx_templavoilaplus_ds'] = $query->fetchAll();
+                $this->data[$this->TV_PREFIX.'_ds'] = $query->fetchAll();
 		    }
 		} catch(PDOException $e) {
 			echo "Error: " . $e->getMessage();
 		}
 		
 
-		if (is_array($this->data['tx_templavoilaplus_ds']) && count($this->data['tx_templavoilaplus_ds']))  {
+		if (is_array($this->data[$this->TV_PREFIX.'_ds']) && count($this->data[$this->TV_PREFIX.'_ds']))  {
 			$sectionContent = '';
 			
 			// generate html output
 			$sectionContent .= '<table class="item-types-summary">'.LF;
 			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . 'tx_templavoilaplus_ds:' . '</th>'.LF;
+			$sectionContent .=      '<th>' . $this->TV_PREFIX.'_ds:' . '</th>'.LF;
 			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
 			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
 			$sectionContent .=   '</tr>'.LF;
 			
 			
-			foreach($this->data['tx_templavoilaplus_ds'] as $item) {
+			foreach($this->data[$this->TV_PREFIX.'_ds'] as $item) {
 				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=tx_templavoilaplus_ds&value='.$item['tx_templavoilaplus_ds'].'" target="_blank">' . $item['tx_templavoilaplus_ds'] . '</a></td>'.LF;
+				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey='.$this->TV_PREFIX.'_ds&value='.$item[$this->TV_PREFIX.'_ds'].'" target="_blank">' . $item[$this->TV_PREFIX.'_ds'] . '</a></td>'.LF;
 				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
 				$pidsLinked = [];
 				foreach (explode(', ', $item['pids']) as $i => $pid)  {
@@ -242,7 +257,7 @@ class ContentSummary	{
 			}
 			
 			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__tx_templavoilaplus_ds'] = $sectionContent;
+			$this->outputContent['summary__'.$this->TV_PREFIX.'_ds'] = $sectionContent;
 		}
 		
 		
@@ -251,40 +266,40 @@ class ContentSummary	{
 		// SECTION: Frames
 
 		try {
-		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'frame_class'")->fetchAll())) {
+		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'section_frame'")->fetchAll())) {
                 $query = $this->db->prepare("
-                    SELECT t.frame_class, COUNT(t.uid) AS count_use, GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
+                    SELECT t.section_frame, COUNT(t.uid) AS count_use, GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
                     FROM `tt_content` AS t
                         JOIN `pages` AS p  ON p.uid = t.pid
-                    WHERE t.frame_class != ''	
+                    WHERE t.section_frame != ''	
                     AND NOT t.deleted 		# AND NOT t.hidden
                         AND NOT p.deleted
-                    GROUP BY t.frame_class
+                    GROUP BY t.section_frame
                 ");
                 $query->execute();
                 $query->setFetchMode(PDO::FETCH_ASSOC);
-                $this->data['frame_class'] = $query->fetchAll();
+                $this->data['section_frame'] = $query->fetchAll();
             }
 		} catch(PDOException $e) {
 			echo "Error: " . $e->getMessage();
 		}
 		
 
-		if (is_array($this->data['frame_class']) && count($this->data['frame_class']))  {
+		if (is_array($this->data['section_frame']) && count($this->data['section_frame']))  {
 			$sectionContent = '';
 			
 			// generate html output
 			$sectionContent .= '<table class="item-types-summary">'.LF;
 			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . 'frame_class:' . '</th>'.LF;
+			$sectionContent .=      '<th>' . 'section_frame:' . '</th>'.LF;
 			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
 			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
 			$sectionContent .=   '</tr>'.LF;
 			
 			
-			foreach($this->data['frame_class'] as $item) {
+			foreach($this->data['section_frame'] as $item) {
 				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=frame_class&value='.$item['frame_class'].'" target="_blank">' . $item['frame_class'] . '</a></td>'.LF;
+				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=section_frame&value='.$item['section_frame'].'" target="_blank">' . $item['section_frame'] . '</a></td>'.LF;
 				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
 				$pidsLinked = [];
 				foreach (explode(', ', $item['pids']) as $i => $pid)  {
@@ -295,7 +310,7 @@ class ContentSummary	{
 			}
 			
 			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__frame_class'] = $sectionContent;
+			$this->outputContent['summary__section_frame'] = $sectionContent;
 		}
 		
 		
@@ -409,7 +424,7 @@ class ContentSummary	{
 	
 	protected function analyseRootline()   {
 	    // init args
-        $availablecontentGroupKeys = ['Ctype', 'list_type', 'tx_templavoilaplus_ds', 'frame_class', 'imageorient', 'header_layout'];
+        $availablecontentGroupKeys = ['Ctype', 'list_type', $this->TV_PREFIX.'_ds', 'section_frame', 'imageorient', 'header_layout'];
 	    $tableField = in_array($_GET['contentGroupKey'], $availablecontentGroupKeys) ? $_GET['contentGroupKey'] : 'INVALID_GROUP_KEY';
 	    $additionalWhere_custom = $_GET['additionalWhere'];
 	    $additionalWhere = '';
@@ -426,9 +441,9 @@ class ContentSummary	{
 
 	    $pidsContainingSuchItems = [];
         try {
-            if ($tableField == 'tx_templavoilaplus_ds') {
+            if ($tableField == $this->TV_PREFIX.'_ds') {
                 // filter contents with stored ds but are edited and not anymore of type fce
-                $additionalWhere = ' AND CType = "templavoilaplus_pi1"';
+                $additionalWhere = ' AND CType = "'.$this->TV_CTYPE.'"';
             }
             if ($tableField == 'imageorient') {
                 // filter contents with stored ds but are edited and not anymore of type fce
@@ -535,13 +550,13 @@ class ContentSummary	{
                 case 'list_type':
                 case 'header':
                 case 'sys_language_uid':
-                case 'frame_class':
+                case 'section_frame':
                 case 'imageorient':
                 case 'header_layout':
                     $fieldMarked = true;
                     break;
-                case 'tx_templavoilaplus_ds':
-                case 'tx_templavoilaplus_to':
+                case $this->TV_PREFIX.'_ds':
+                case $this->TV_PREFIX.'_to':
                     $fieldMarked = $value ? true : false;
                     break;
                 case 'tstamp':
@@ -557,7 +572,7 @@ class ContentSummary	{
                     }
 		            break;
                 case 'pi_flexform':
-                case 'tx_templavoilaplus_flex':
+                case $this->TV_PREFIX.'_flex':
                     if ($value) {
                         $fieldProcessed = true;
                         $dom = new DOMDocument;
@@ -655,14 +670,14 @@ class ContentSummary	{
                 $pageContent .= '<h2>tt_content - Ctypes:</h2>'.LF;
                 $pageContent .= $this->getContent('summary__Ctype');
                 
-                if ($this->data['tx_templavoilaplus_ds'])   {
+                if ($this->data[$this->TV_PREFIX.'_ds'])   {
                     $pageContent .= '<h2>tt_content - Templavoila FCE DS:</h2>'.LF;
-                    $pageContent .= $this->getContent('summary__tx_templavoilaplus_ds');
+                    $pageContent .= $this->getContent('summary__'.$this->TV_PREFIX.'_ds');
                 }
                 
-                if ($this->data['frame_class'])   {
+                if ($this->data['section_frame'])   {
                     $pageContent .= '<h2>tt_content - Frames:</h2>'.LF;
-                    $pageContent .= $this->getContent('summary__frame_class');
+                    $pageContent .= $this->getContent('summary__section_frame');
                 }
                 
                 if ($this->data['imageorient'])   {
@@ -778,29 +793,29 @@ class ContentSummary	{
             
             
             // TV FCE
-            if (is_array($this->data['tx_templavoilaplus_ds'])  &&  count($this->data['tx_templavoilaplus_ds']))    {
+            if (is_array($this->data[$this->TV_PREFIX.'_ds'])  &&  count($this->data[$this->TV_PREFIX.'_ds']))    {
                 
                 for ($i=0; $i<=3; $i++)  {  // leave 4 empty rows before
                     fputcsv($csvHandle, []);
                 }
                 
                 fputcsv($csvHandle, ['Templavoila FCEs:', 'count_use:', 'pids:']);
-                foreach ($this->data['tx_templavoilaplus_ds'] as $row)  {
-                    fputcsv($csvHandle, [$row['tx_templavoilaplus_ds'], $row['count_use'], $row['pids']]);
+                foreach ($this->data[$this->TV_PREFIX.'_ds'] as $row)  {
+                    fputcsv($csvHandle, [$row[$this->TV_PREFIX.'_ds'], $row['count_use'], $row['pids']]);
                 }
             }
             
             
             // Frames
-            if (is_array($this->data['frame_class'])  &&  count($this->data['frame_class']))    {
+            if (is_array($this->data['section_frame'])  &&  count($this->data['section_frame']))    {
                 
                 for ($i=0; $i<=3; $i++)  {  // leave 4 empty rows
                     fputcsv($csvHandle, []);
                 }
 
                 fputcsv($csvHandle, ['CSC/FSC Frames', 'count_use:', 'pids:']);
-                foreach ($this->data['frame_class'] as $row)  {
-                    fputcsv($csvHandle, [$row['frame_class'], $row['count_use'], $row['pids']]);
+                foreach ($this->data['section_frame'] as $row)  {
+                    fputcsv($csvHandle, [$row['section_frame'], $row['count_use'], $row['pids']]);
                 }
             }
             

@@ -1,10 +1,13 @@
 <?php
 /**
  * WTP TYPO3 Content Summary
- * v0.8
+ * v0.9
  * WTP / wolo.pl '.' studio 2021
- * 
- * - Prepare a clear table of found content types, plugins, FCEs, frames.
+ */
+
+define ('CONTENT_SUMMARY_VERSION', '0.9.0');
+
+/** - Prepare a clear table of found content types, plugins, FCEs, frames.
  * - What is used where and how many of them (...you'll have to repair, if you broke it.)
  * - Get direct links to each type examples - find them all quickly to control if they still work after update.
  * - Whether that cave-era-accordion, which uses that old problematic js lib, is really still needed.
@@ -19,21 +22,42 @@
  * 			- NOTE - set $GLOBALS['ContentSummaryConfig']['versionCompat'] below, if needed!
  * 
  *   Q: Which TYPO3 versions/branches does it support?
- *   A: These which have fields list_type and Ctype in tt_content table, so basically all since 4.x to 10.x should work.
+ *   A: These which have fields list_type and CType in tt_content table, so basically all since 4.x to 10.x should work.
  *		You only must set the database credentials in the format like below / 8.x form.  
  */
 
-// Uncomment when needed
-$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
-$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
-$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
-$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
 
-error_reporting(E_ALL ^ E_WARNING ^ E_NOTICE);
+// By default, this script operates standalone and prints output, but it may also be included externally, to use its calculated data.
+// To do this, before inclusion set config value 'mode_include' => 1
+// and then instantiate passing config array
+if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
+
+	// Uncomment when needed
+	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
+	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
+	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
+	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
 
 
-// Config
-$GLOBALS['ContentSummaryConfig'] = [
+
+	// Local Config
+	$GLOBALS['ContentSummaryConfig'] = [
+		'autosaveCSV' => 0,
+		// 'versionCompat' => 6,
+	];
+	
+
+	error_reporting(E_ALL ^ E_WARNING ^ E_NOTICE);
+}
+
+
+
+
+
+
+
+// Default Config
+$GLOBALS['ContentSummaryConfigDefault'] = [
 
 	// typo3 major version - to auto handle db structure differences, like frame class or templavoila naming
 	'versionCompat' => 10,
@@ -46,10 +70,22 @@ $GLOBALS['ContentSummaryConfig'] = [
     'autosaveCSV' => 1,
     
     // where to save, if not to current dir
-    'fileDumpPath' => '', 
+    'fileDumpPath' => '',
+	
+	'showSummaryFor' => [
+		ContentSummary::TYPE_PLUGIN,
+		ContentSummary::TYPE_CE,
+		ContentSummary::TYPE_FRAME,
+		ContentSummary::TYPE_HEADER,
+		ContentSummary::TYPE_IMAGEORIENT,
+		ContentSummary::TYPE_TEMPLAVOILA_DS,
+		ContentSummary::TYPE_TEMPLAVOILA_TO
+	],
 ];
 
 
+
+$GLOBALS['ContentSummaryConfig'] = array_merge($GLOBALS['ContentSummaryConfigDefault'], $GLOBALS['ContentSummaryConfig'] ?? []);
 
 
 
@@ -64,9 +100,23 @@ class ContentSummary	{
 	public $TT_FRAME = 'frame_class';
 
 
-	
+	// these are internal section keys, not database fields!
+	const TYPE_PLUGIN = 'plugin';
+	const TYPE_CE = 'CType';
+	const TYPE_FRAME = 'frame';
+	const TYPE_HEADER = 'header_layout';
+	const TYPE_IMAGEORIENT = 'imageorient';
+	const TYPE_TEMPLAVOILA_DS = 'tv_ds';
+	const TYPE_TEMPLAVOILA_TO = 'tv_to';
+
+
 	/** @var PDO */
 	protected $db;
+
+	/**
+	 * @var array configuration
+	 */
+	protected $config = [];
 
 	/**
 	 * @var array of arrays (items)
@@ -85,12 +135,15 @@ class ContentSummary	{
 
 
 
-	public function __construct() {
-        // connect to db
-		$this->databaseConnect();
+	public function __construct(array $config) {
+		$this->config = $config;
+		if (!$config['mode_include'])	{
+			// connect to db
+			$this->databaseConnect();
+		}
 		defined('LF') ?: define('LF', chr(10));
 		
-		if ($GLOBALS['ContentSummaryConfig']['versionCompat'] == 6)	{
+		if ($this->config['versionCompat'] == 6)	{
 			$this->TV_PREFIX = 'tx_templavoila';
 			$this->TV_CTYPE = 'templavoila_pi1';
 			$this->TT_FRAME = 'section_frame';
@@ -102,329 +155,413 @@ class ContentSummary	{
 		
 		// SECTION: list_type
 
-		try {
-			$query = $this->db->prepare("
-				SELECT t.list_type, COUNT(t.uid) AS count_use, 
-					GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
-					# just make this in code
-					# GROUP_CONCAT( DISTINCT CONCAT('https://example.de.local/?id=', t.pid) SEPARATOR ' ' ) AS urls
-				FROM `tt_content` AS t
-					JOIN `pages` AS p  ON p.uid = t.pid
-				WHERE t.list_type != ''
-					AND NOT t.deleted 		# AND NOT t.hidden
-					AND NOT p.deleted
-				GROUP BY t.list_type
-			");
-			$query->execute();
-			$query->setFetchMode(PDO::FETCH_ASSOC);
-			$this->data['list_type'] = $query->fetchAll();
-		} catch(PDOException $e) {
-			echo "Error: " . $e->getMessage();
-		}
-		
+		if (in_array(self::TYPE_PLUGIN, $this->config['showSummaryFor']))	{
 
-		if (count($this->data['list_type']))  {
-			$sectionContent = '';
-
-			// generate html output
-			$sectionContent .= '<table class="item-types-summary">'.LF;
-			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . 'list_type:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
-			$sectionContent .=   '</tr>'.LF;
-			
-			
-			foreach($this->data['list_type'] as $item) {
-				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=list_type&value='.$item['list_type'].'" target="_blank">' . $item['list_type'] . '</a></td>'.LF;
-				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
-				$pidsLinked = [];
-				foreach (explode(', ', $item['pids']) as $i => $pid)  {
-				    $pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
-                }
-				$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
-				$sectionContent .= '</tr>'.LF;
+			try {
+				$query = $this->db->prepare("
+					SELECT t.list_type, COUNT(t.uid) AS count_use, 
+						GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
+						# just make this in code
+						# GROUP_CONCAT( DISTINCT CONCAT('https://example.de.local/?id=', t.pid) SEPARATOR ' ' ) AS urls
+					FROM `tt_content` AS t
+						JOIN `pages` AS p  ON p.uid = t.pid
+					WHERE t.list_type != ''
+						AND NOT t.deleted 		# AND NOT t.hidden
+						AND NOT p.deleted
+					GROUP BY t.list_type
+				");
+				$query->execute();
+				$query->setFetchMode(PDO::FETCH_ASSOC);
+				$this->data['list_type'] = $query->fetchAll();
+			} catch(PDOException $e) {
+				echo "Error: " . $e->getMessage();
 			}
 			
-			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__list_type'] = $sectionContent;
+	
+			if (count($this->data['list_type']))  {
+				$sectionContent = '';
+	
+				// generate html output
+				$sectionContent .= '<table class="item-types-summary">'.LF;
+				$sectionContent .=   '<tr>'.LF;
+				$sectionContent .=      '<th>' . 'list_type:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
+				$sectionContent .=   '</tr>'.LF;
+				
+				
+				foreach($this->data['list_type'] as $item) {
+					$sectionContent .= '<tr>'.LF;
+					$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=list_type&value='.$item['list_type'].'" target="_blank">' . $item['list_type'] . '</a></td>'.LF;
+					$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
+					$pidsLinked = [];
+					foreach (explode(', ', $item['pids']) as $i => $pid)  {
+						$pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
+					}
+					$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+					$sectionContent .= '</tr>'.LF;
+				}
+				
+				$sectionContent .= '</table>'.LF;
+				$this->outputContent['summary__'.self::TYPE_PLUGIN] = $sectionContent;
+			}
 		}
 		
 		
 		
 		
-		
-		// SECTION: Ctype
+		// SECTION: CType
 
-		try {
-			$query = $this->db->prepare("
-                SELECT t.Ctype, COUNT(t.uid) AS count_use,
-                   GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
-                FROM `tt_content` AS t
-                    JOIN `pages` AS p  ON p.uid = t.pid
-                WHERE t.Ctype != ''	
-                    AND NOT t.deleted 		# AND NOT t.hidden
-                    AND NOT p.deleted
-                GROUP BY t.Ctype
-			");
-			$query->execute();
-			$query->setFetchMode(PDO::FETCH_ASSOC);
-			$this->data['Ctype'] = $query->fetchAll();
-		} catch(PDOException $e) {
-			echo "Error: " . $e->getMessage();
-		}
-		
-
-		if (count($this->data['Ctype']))  {
-			$sectionContent = '';
+		if (in_array(self::TYPE_CE, $this->config['showSummaryFor']))	{
 			
-			// generate html output
-			$sectionContent .= '<table class="item-types-summary">'.LF;
-			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . 'Ctype:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
-			$sectionContent .=   '</tr>'.LF;
-			
-			
-			foreach($this->data['Ctype'] as $item) {
-				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=Ctype&value='.$item['Ctype'].'" target="_blank">' . $item['Ctype'] . '</a></td>'.LF;
-				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
-				$pidsLinked = [];
-				foreach (explode(', ', $item['pids']) as $i => $pid)  {
-				    $pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
-                }
-				$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
-				$sectionContent .= '</tr>'.LF;
+			try {
+				$query = $this->db->prepare("
+					SELECT t.CType, COUNT(t.uid) AS count_use,
+					   GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
+					FROM `tt_content` AS t
+						JOIN `pages` AS p  ON p.uid = t.pid
+					WHERE t.CType != ''	
+						AND NOT t.deleted 		# AND NOT t.hidden
+						AND NOT p.deleted
+					GROUP BY t.CType
+				");
+				$query->execute();
+				$query->setFetchMode(PDO::FETCH_ASSOC);
+				$this->data['CType'] = $query->fetchAll();
+			} catch(PDOException $e) {
+				echo "Error: " . $e->getMessage();
 			}
 			
-			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__Ctype'] = $sectionContent;
-		}
-		
-		
-		
-		
-		
-		// SECTION: TemplaVoila FCEs
 
-		try {
-		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE '{$this->TV_PREFIX}_ds'")->fetchAll())) {
-		    
-                $query = $this->db->prepare("
-                    SELECT t.{$this->TV_PREFIX}_ds, COUNT(t.uid) AS count_use, 
-                        GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
-                    FROM `tt_content` AS t
-                        JOIN `pages` AS p ON p.uid = t.pid
-                    WHERE t.CType = '{$this->TV_CTYPE}'
-                        AND NOT t.deleted 		# AND NOT t.hidden 
-                        AND NOT p.deleted
-                    GROUP BY t.{$this->TV_PREFIX}_ds
-                ");
-                $query->execute();
-                $query->setFetchMode(PDO::FETCH_ASSOC);
-                $this->data[$this->TV_PREFIX.'_ds'] = $query->fetchAll();
-		    }
-		} catch(PDOException $e) {
-			echo "Error: " . $e->getMessage();
-		}
-		
-
-		if (is_array($this->data[$this->TV_PREFIX.'_ds']) && count($this->data[$this->TV_PREFIX.'_ds']))  {
-			$sectionContent = '';
-			
-			// generate html output
-			$sectionContent .= '<table class="item-types-summary">'.LF;
-			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . $this->TV_PREFIX.'_ds:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
-			$sectionContent .=   '</tr>'.LF;
-			
-			
-			foreach($this->data[$this->TV_PREFIX.'_ds'] as $item) {
-				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey='.$this->TV_PREFIX.'_ds&value='.$item[$this->TV_PREFIX.'_ds'].'" target="_blank">' . $item[$this->TV_PREFIX.'_ds'] . '</a></td>'.LF;
-				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
-				$pidsLinked = [];
-				foreach (explode(', ', $item['pids']) as $i => $pid)  {
-				    $pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
-                }
-				$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
-				$sectionContent .= '</tr>'.LF;
+			if (count($this->data['CType']))  {
+				$sectionContent = '';
+				
+				// generate html output
+				$sectionContent .= '<table class="item-types-summary">'.LF;
+				$sectionContent .=   '<tr>'.LF;
+				$sectionContent .=      '<th>' . 'CType:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
+				$sectionContent .=   '</tr>'.LF;
+				
+				
+				foreach($this->data['CType'] as $item) {
+					$sectionContent .= '<tr>'.LF;
+					$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=CType&value='.$item['CType'].'" target="_blank">' . $item['CType'] . '</a></td>'.LF;
+					$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
+					$pidsLinked = [];
+					foreach (explode(', ', $item['pids']) as $i => $pid)  {
+						$pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
+					}
+					$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+					$sectionContent .= '</tr>'.LF;
+				}
+				
+				$sectionContent .= '</table>'.LF;
+				$this->outputContent['summary__'.self::TYPE_CE] = $sectionContent;
 			}
-			
-			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__'.$this->TV_PREFIX.'_ds'] = $sectionContent;
 		}
-		
-		
-		
-		
+
+
+
+
 		// SECTION: Frames
 
-		try {
-		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'section_frame'")->fetchAll())) {
-                $query = $this->db->prepare("
-                    SELECT t.section_frame, COUNT(t.uid) AS count_use, GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
-                    FROM `tt_content` AS t
-                        JOIN `pages` AS p  ON p.uid = t.pid
-                    WHERE t.section_frame != ''	
-                    AND NOT t.deleted 		# AND NOT t.hidden
-                        AND NOT p.deleted
-                    GROUP BY t.section_frame
-                ");
-                $query->execute();
-                $query->setFetchMode(PDO::FETCH_ASSOC);
-                $this->data['section_frame'] = $query->fetchAll();
-            }
-		} catch(PDOException $e) {
-			echo "Error: " . $e->getMessage();
-		}
-		
+		if (in_array(self::TYPE_FRAME, $this->config['showSummaryFor']))	{
 
-		if (is_array($this->data['section_frame']) && count($this->data['section_frame']))  {
-			$sectionContent = '';
-			
-			// generate html output
-			$sectionContent .= '<table class="item-types-summary">'.LF;
-			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . 'section_frame:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
-			$sectionContent .=   '</tr>'.LF;
-			
-			
-			foreach($this->data['section_frame'] as $item) {
-				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=section_frame&value='.$item['section_frame'].'" target="_blank">' . $item['section_frame'] . '</a></td>'.LF;
-				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
-				$pidsLinked = [];
-				foreach (explode(', ', $item['pids']) as $i => $pid)  {
-				    $pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
-                }
-				$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
-				$sectionContent .= '</tr>'.LF;
+			try {
+				if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE '{$this->TT_FRAME}'")->fetchAll())) {
+					$query = $this->db->prepare("
+						SELECT ce.{$this->TT_FRAME}, COUNT(ce.uid) AS count_use, GROUP_CONCAT( DISTINCT ce.pid SEPARATOR ', ') AS pids
+						FROM `tt_content` AS ce
+							JOIN `pages` AS p  ON p.uid = ce.pid
+						WHERE ce.{$this->TT_FRAME} != ''	
+						AND NOT ce.deleted 		# AND NOT ce.hidden
+							AND NOT p.deleted
+						GROUP BY ce.{$this->TT_FRAME}
+					");
+					$query->execute();
+					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$this->data[$this->TT_FRAME] = $query->fetchAll();
+				}
+			} catch(PDOException $e) {
+				echo "Error: " . $e->getMessage();
 			}
 			
-			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__section_frame'] = $sectionContent;
+	
+			if (is_array($this->data[$this->TT_FRAME]) && count($this->data[$this->TT_FRAME]))  {
+				$sectionContent = '';
+				
+				// generate html output
+				$sectionContent .= '<table class="item-types-summary">'.LF;
+				$sectionContent .=   '<tr>'.LF;
+				$sectionContent .=      '<th>' . $this->TT_FRAME.':' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
+				$sectionContent .=   '</tr>'.LF;
+				
+				
+				foreach($this->data[$this->TT_FRAME] as $item) {
+					$sectionContent .= '<tr>'.LF;
+					$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey='.$this->TT_FRAME.'&value='.$item[$this->TT_FRAME].'" target="_blank">' . $item[$this->TT_FRAME] . '</a></td>'.LF;
+					$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
+					$pidsLinked = [];
+					foreach (explode(', ', $item['pids']) as $i => $pid)  {
+						$pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
+					}
+					$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+					$sectionContent .= '</tr>'.LF;
+				}
+				
+				$sectionContent .= '</table>'.LF;
+				$this->outputContent['summary__'.self::TYPE_FRAME] = $sectionContent;
+			}
 		}
-		
-		
+	
+	
+	
 		
 		// SECTION: Image orient
 
-		try {
-		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'imageorient'")->fetchAll())) {
-                $query = $this->db->prepare("
-                    SELECT t.imageorient, COUNT(t.uid) AS count_use, GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
-                    FROM `tt_content` AS t
-                        JOIN `pages` AS p  ON p.uid = t.pid
-                    WHERE t.imageorient != ''
-                        AND CType = 'textpic'
-                        AND NOT t.deleted 		# AND NOT t.hidden
-                        AND NOT p.deleted
-                    GROUP BY t.imageorient
-                ");
-                $query->execute();
-                $query->setFetchMode(PDO::FETCH_ASSOC);
-                $this->data['imageorient'] = $query->fetchAll();
-            }
-		} catch(PDOException $e) {
-			echo "Error: " . $e->getMessage();
-		}
-		
+		if (in_array(self::TYPE_IMAGEORIENT, $this->config['showSummaryFor']))	{
 
-		if (is_array($this->data['imageorient']) && count($this->data['imageorient']))  {
-			$sectionContent = '';
-			
-			// generate html output
-			$sectionContent .= '<table class="item-types-summary">'.LF;
-			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . 'imageorient:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
-			$sectionContent .=   '</tr>'.LF;
-			
-			
-			foreach($this->data['imageorient'] as $item) {
-				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=imageorient&value='.$item['imageorient'].'" target="_blank">' . $item['imageorient'] . '</a></td>'.LF;
-				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
-				$pidsLinked = [];
-				foreach (explode(', ', $item['pids']) as $i => $pid)  {
-				    $pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
-                }
-				$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
-				$sectionContent .= '</tr>'.LF;
+			try {
+				if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'imageorient'")->fetchAll())) {
+					$query = $this->db->prepare("
+						SELECT ce.imageorient, COUNT(ce.uid) AS count_use, GROUP_CONCAT( DISTINCT ce.pid SEPARATOR ', ') AS pids
+						FROM `tt_content` AS ce
+							JOIN `pages` AS p  ON p.uid = ce.pid
+						WHERE ce.imageorient != ''
+							AND CType = 'textpic'
+							AND NOT ce.deleted 		# AND NOT ce.hidden
+							AND NOT p.deleted
+						GROUP BY ce.imageorient
+						"/* cast to integer workaround: */."
+						ORDER BY (ce.imageorient * 1)
+					");
+					$query->execute();
+					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$this->data['imageorient'] = $query->fetchAll();
+				}
+			} catch(PDOException $e) {
+				echo "Error: " . $e->getMessage();
 			}
 			
-			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__imageorient'] = $sectionContent;
+
+			if (is_array($this->data['imageorient']) && count($this->data['imageorient']))  {
+				$sectionContent = '';
+				
+				// generate html output
+				$sectionContent .= '<table class="item-types-summary">'.LF;
+				$sectionContent .=   '<tr>'.LF;
+				$sectionContent .=      '<th>' . 'imageorient:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
+				$sectionContent .=   '</tr>'.LF;
+				
+				
+				foreach($this->data['imageorient'] as $item) {
+					$sectionContent .= '<tr>'.LF;
+					$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=imageorient&value='.$item['imageorient'].'" target="_blank">' . $item['imageorient'] . '</a></td>'.LF;
+					$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
+					$pidsLinked = [];
+					foreach (explode(', ', $item['pids']) as $i => $pid)  {
+						$pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
+					}
+					$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+					$sectionContent .= '</tr>'.LF;
+				}
+				
+				$sectionContent .= '</table>'.LF;
+				$this->outputContent['summary__'.self::TYPE_IMAGEORIENT] = $sectionContent;
+			}
 		}
+		
 		
 		
 		
 		// SECTION: Header layout
 
-		try {
-		    if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'header_layout'")->fetchAll())) {
-                $query = $this->db->prepare("
-                    SELECT t.header_layout, COUNT(t.uid) AS count_use, GROUP_CONCAT( DISTINCT t.pid SEPARATOR ', ') AS pids
-                    FROM `tt_content` AS t
-                        JOIN `pages` AS p  ON p.uid = t.pid
-                    WHERE t.header_layout != ''	
-                    AND NOT t.deleted 		# AND NOT t.hidden
-                        AND NOT p.deleted
-                    GROUP BY t.header_layout
-                ");
-                $query->execute();
-                $query->setFetchMode(PDO::FETCH_ASSOC);
-                $this->data['header_layout'] = $query->fetchAll();
-            }
-		} catch(PDOException $e) {
-			echo "Error: " . $e->getMessage();
+		if (in_array(self::TYPE_HEADER, $this->config['showSummaryFor']))	{
+
+			try {
+				if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'header_layout'")->fetchAll())) {
+					$query = $this->db->prepare("
+						SELECT ce.header_layout, COUNT(ce.uid) AS count_use, GROUP_CONCAT( DISTINCT ce.pid SEPARATOR ', ') AS pids
+						FROM `tt_content` AS ce
+							JOIN `pages` AS p  ON p.uid = ce.pid
+						WHERE ce.header_layout != ''	
+						AND NOT ce.deleted 		# AND NOT t.hidden
+							AND NOT p.deleted
+						GROUP BY ce.header_layout
+						"/* cast to integer workaround: */."
+						ORDER BY (ce.header_layout * 1)
+					");
+					$query->execute();
+					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$this->data['header_layout'] = $query->fetchAll();
+				}
+			} catch(PDOException $e) {
+				echo "Error: " . $e->getMessage();
+			}
+
+			if (is_array($this->data['header_layout']) && count($this->data['header_layout']))  {
+				$sectionContent = '';
+				
+				// generate html output
+				$sectionContent .= '<table class="item-types-summary">'.LF;
+				$sectionContent .=   '<tr>'.LF;
+				$sectionContent .=      '<th>' . 'header_layout:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
+				$sectionContent .=   '</tr>'.LF;
+	
+	
+				$param_additionalWhere = '&additionalWhere=' . urlencode('AND header != ""');
+				
+				foreach($this->data['header_layout'] as $item) {
+					$sectionContent .= '<tr>'.LF;
+					$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=header_layout&value='.$item['header_layout'].$param_additionalWhere.'" target="_blank">' . $item['header_layout'] . '</a></td>'.LF;
+					$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
+					$pidsLinked = [];
+					foreach (explode(', ', $item['pids']) as $i => $pid)  {
+						$pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
+					}
+					$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+					$sectionContent .= '</tr>'.LF;
+				}
+				
+				$sectionContent .= '</table>'.LF;
+				$this->outputContent['summary__'.self::TYPE_HEADER] = $sectionContent;
+			}
 		}
 		
+		
+		
+		
+		// SECTION: TemplaVoila FCE DS
 
-		if (is_array($this->data['header_layout']) && count($this->data['header_layout']))  {
-			$sectionContent = '';
-			
-			// generate html output
-			$sectionContent .= '<table class="item-types-summary">'.LF;
-			$sectionContent .=   '<tr>'.LF;
-			$sectionContent .=      '<th>' . 'header_layout:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
-			$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
-			$sectionContent .=   '</tr>'.LF;
+		if (in_array(self::TYPE_TEMPLAVOILA_DS, $this->config['showSummaryFor']))	{
 
-
-			$param_additionalWhere = '&additionalWhere=' . urlencode('AND header != ""');
-			
-			foreach($this->data['header_layout'] as $item) {
-				$sectionContent .= '<tr>'.LF;
-				$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey=header_layout&value='.$item['header_layout'].$param_additionalWhere.'" target="_blank">' . $item['header_layout'] . '</a></td>'.LF;
-				$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
-				$pidsLinked = [];
-				foreach (explode(', ', $item['pids']) as $i => $pid)  {
-				    $pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
-                }
-				$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
-				$sectionContent .= '</tr>'.LF;
+			try {
+				if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE '{$this->TV_PREFIX}_ds'")->fetchAll())) {
+				
+					$query = $this->db->prepare("
+						SELECT ce.{$this->TV_PREFIX}_ds, COUNT(ce.uid) AS count_use, 
+							GROUP_CONCAT( DISTINCT ce.pid SEPARATOR ', ') AS pids
+						FROM `tt_content` AS ce
+							JOIN `pages` AS p ON p.uid = ce.pid
+						WHERE ce.CType = '{$this->TV_CTYPE}'
+							AND NOT ce.deleted 		# AND NOT ce.hidden 
+							AND NOT ce.deleted
+						GROUP BY ce.{$this->TV_PREFIX}_ds
+						ORDER BY ce.{$this->TV_PREFIX}_to
+					");
+					$query->execute();
+					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$this->data[$this->TV_PREFIX.'_ds'] = $query->fetchAll();
+				}
+			} catch(PDOException $e) {
+				echo "Error: " . $e->getMessage();
 			}
 			
-			$sectionContent .= '</table>'.LF;
-			$this->outputContent['summary__header_layout'] = $sectionContent;
+
+			if (is_array($this->data[$this->TV_PREFIX.'_ds']) && count($this->data[$this->TV_PREFIX.'_ds']))  {
+				$sectionContent = '';
+				
+				// generate html output
+				$sectionContent .= '<table class="item-types-summary">'.LF;
+				$sectionContent .=   '<tr>'.LF;
+				$sectionContent .=      '<th>' . $this->TV_PREFIX.'_ds:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
+				$sectionContent .=   '</tr>'.LF;
+				
+				
+				foreach($this->data[$this->TV_PREFIX.'_ds'] as $item) {
+					$sectionContent .= '<tr>'.LF;
+					$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey='.$this->TV_PREFIX.'_ds&value='.$item[$this->TV_PREFIX.'_ds'].'" target="_blank">' . $item[$this->TV_PREFIX.'_ds'] . '</a></td>'.LF;
+					$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
+					$pidsLinked = [];
+					foreach (explode(', ', $item['pids']) as $i => $pid)  {
+						$pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
+					}
+					$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+					$sectionContent .= '</tr>'.LF;
+				}
+				
+				$sectionContent .= '</table>'.LF;
+				$this->outputContent['summary__'.self::TYPE_TEMPLAVOILA_DS] = $sectionContent;
+			
+			}
+		}
+		
+		
+		
+		
+		// SECTION: TemplaVoila FCE TO
+
+		if (in_array(self::TYPE_TEMPLAVOILA_TO, $this->config['showSummaryFor']))	{
+
+			try {
+				if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE '{$this->TV_PREFIX}_to'")->fetchAll())) {
+				
+					$query = $this->db->prepare("
+						SELECT ce.{$this->TV_PREFIX}_to, COUNT(ce.uid) AS count_use, 
+							GROUP_CONCAT( DISTINCT ce.pid SEPARATOR ', ') AS pids,
+						   	tvto.title AS to_title
+						FROM `tt_content` AS ce
+							JOIN `pages` AS p  ON p.uid = ce.pid
+							JOIN `{$this->TV_PREFIX}_tmplobj` AS tvto  ON tvto.uid = ce.{$this->TV_PREFIX}_to
+						WHERE ce.CType = '{$this->TV_CTYPE}'
+							AND NOT ce.deleted 		# AND NOT t.hidden 
+							AND NOT p.deleted
+						GROUP BY ce.{$this->TV_PREFIX}_to
+						ORDER BY ce.{$this->TV_PREFIX}_to
+					");
+					$query->execute();
+					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$this->data[$this->TV_PREFIX.'_to'] = $query->fetchAll();
+				}
+			} catch(PDOException $e) {
+				echo "Error: " . $e->getMessage();
+			}
+			
+
+			if (is_array($this->data[$this->TV_PREFIX.'_to']) && count($this->data[$this->TV_PREFIX.'_to']))  {
+				$sectionContent = '';
+				
+				// generate html output
+				$sectionContent .= '<table class="item-types-summary">'.LF;
+				$sectionContent .=   '<tr>'.LF;
+				$sectionContent .=      '<th>' . $this->TV_PREFIX.'_to:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'count:' . '</th>'.LF;
+				$sectionContent .=      '<th>' . 'pids:' . '</th>'.LF;
+				$sectionContent .=   '</tr>'.LF;
+				
+				
+				foreach($this->data[$this->TV_PREFIX.'_to'] as $item) {
+					$sectionContent .= '<tr>'.LF;
+					$sectionContent .=   '<td><a href="?action=analyseRootline&contentGroupKey='.$this->TV_PREFIX.'_to&value='.$item[$this->TV_PREFIX.'_to'].'" target="_blank">' . $item[$this->TV_PREFIX.'_to'] .' / '. $item['to_title'] .'</a></td>'.LF;
+					$sectionContent .=   '<td>' . $item['count_use'] . '</td>'.LF;
+					$pidsLinked = [];
+					foreach (explode(', ', $item['pids']) as $i => $pid)  {
+						$pidsLinked[] =     '<a href="' . preg_replace('{/$}', '', $GLOBALS['baseDomain']) . '/?id=' . $pid . '" target="_blank">' . $pid . '</a>'.LF;
+					}
+					$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+					$sectionContent .= '</tr>'.LF;
+				}
+				
+				$sectionContent .= '</table>'.LF;
+				$this->outputContent['summary__'.self::TYPE_TEMPLAVOILA_TO] = $sectionContent;
+			}
 		}
 	}
 	
 	
 	protected function analyseRootline()   {
 	    // init args
-        $availablecontentGroupKeys = ['Ctype', 'list_type', $this->TV_PREFIX.'_ds', 'section_frame', 'imageorient', 'header_layout'];
+        $availablecontentGroupKeys = ['CType', 'list_type', $this->TV_PREFIX.'_ds', $this->TV_PREFIX.'_to', $this->TT_FRAME, 'imageorient', 'header_layout'];
 	    $tableField = in_array($_GET['contentGroupKey'], $availablecontentGroupKeys) ? $_GET['contentGroupKey'] : 'INVALID_GROUP_KEY';
 	    $additionalWhere_custom = $_GET['additionalWhere'];
 	    $additionalWhere = '';
@@ -550,7 +687,7 @@ class ContentSummary	{
                 case 'list_type':
                 case 'header':
                 case 'sys_language_uid':
-                case 'section_frame':
+                case $this->TT_FRAME:
                 case 'imageorient':
                 case 'header_layout':
                     $fieldMarked = true;
@@ -647,7 +784,7 @@ class ContentSummary	{
         
             case 'analyseRootline':
                 $this->analyseRootline();
-        
+
                 $pageContent .= '<h1>Analyse rootline</h1>'.LF;
                 $pageContent .= $this->getContent('analyseRootline');
                 break;
@@ -657,37 +794,46 @@ class ContentSummary	{
                 $pageContent .= '<h1>Tt_content details</h1>'.LF;
                 $pageContent .= $this->getContent('ttcontentDetails');
                 break;
-        
+
             default:
                 $this->makeSummary();
                 
                 $pageContent .= '<h1>Project item types summary</h1>'.LF; 
                 $pageContent .= '###PLACEHOLDER_MESSAGE###'; 
-        
-                $pageContent .= '<h2>tt_content - Plugin types:</h2>'.LF;
-                $pageContent .= $this->getContent('summary__list_type');
-                
-                $pageContent .= '<h2>tt_content - Ctypes:</h2>'.LF;
-                $pageContent .= $this->getContent('summary__Ctype');
-                
-                if ($this->data[$this->TV_PREFIX.'_ds'])   {
-                    $pageContent .= '<h2>tt_content - Templavoila FCE DS:</h2>'.LF;
-                    $pageContent .= $this->getContent('summary__'.$this->TV_PREFIX.'_ds');
+
+                if (in_array(self::TYPE_PLUGIN, $this->config['showSummaryFor']))   {
+					$pageContent .= '<h2>tt_content - Plugin types:</h2>'.LF;
+					$pageContent .= $this->getContent('summary__'.self::TYPE_PLUGIN);
                 }
                 
-                if ($this->data['section_frame'])   {
+				if (in_array(self::TYPE_CE, $this->config['showSummaryFor']))   {
+					$pageContent .= '<h2>tt_content - CTypes:</h2>'.LF;
+					$pageContent .= $this->getContent('summary__'.self::TYPE_CE);
+				}
+                
+                if (in_array(self::TYPE_FRAME, $this->config['showSummaryFor']))   {
                     $pageContent .= '<h2>tt_content - Frames:</h2>'.LF;
-                    $pageContent .= $this->getContent('summary__section_frame');
+                    $pageContent .= $this->getContent('summary__'.self::TYPE_FRAME);
                 }
                 
-                if ($this->data['imageorient'])   {
+                if (in_array(self::TYPE_IMAGEORIENT, $this->config['showSummaryFor']))   {
                     $pageContent .= '<h2>tt_content - Image orient:</h2>'.LF;
-                    $pageContent .= $this->getContent('summary__imageorient');
+                    $pageContent .= $this->getContent('summary__'.self::TYPE_IMAGEORIENT);
                 }
                 
-                if ($this->data['header_layout'])   {
+                if (in_array(self::TYPE_HEADER, $this->config['showSummaryFor']))	{
                     $pageContent .= '<h2>tt_content - Header layout:</h2>'.LF;
-                    $pageContent .= $this->getContent('summary__header_layout');
+                    $pageContent .= $this->getContent('summary__'.self::TYPE_HEADER);
+                }
+                
+                if (in_array(self::TYPE_TEMPLAVOILA_DS, $this->config['showSummaryFor']))   {
+                    $pageContent .= '<h2>tt_content - Templavoila FCE DS:</h2>'.LF;
+                    $pageContent .= $this->getContent('summary__'.self::TYPE_TEMPLAVOILA_DS);
+                }
+				
+                if (in_array(self::TYPE_TEMPLAVOILA_TO, $this->config['showSummaryFor']))   {
+                    $pageContent .= '<h2>tt_content - Templavoila FCE TO:</h2>'.LF;
+                    $pageContent .= $this->getContent('summary__'.self::TYPE_TEMPLAVOILA_TO);
                 }
         }
         
@@ -746,10 +892,10 @@ class ContentSummary	{
 	 * @param string $html
 	 */
 	public function saveOutput($html) {
-        if ($GLOBALS['ContentSummaryConfig']['autosaveHTML'] == 1)  {
+        if ($this->config['autosaveHTML'] == 1)  {
             $this->messages[] = '<span class="small"><i>(autosave active)</i></span>';
             $html = $this->cleanupPlaceholders($html);
-            $savePath = $GLOBALS['ContentSummaryConfig']['fileDumpPath'] . 'content_summary-'.date('Ymd-His').'.html';
+            $savePath = $this->config['fileDumpPath'] . 'content_summary-'.date('Ymd-His').'.html';
             if (false === file_put_contents($savePath, $html)) {
                 $this->messages[] = 'Autosave HTML failed! Can\'t write file to path: ' . $savePath;
             }
@@ -760,7 +906,7 @@ class ContentSummary	{
 	 * Dump the whole summary data to Csv 
 	 */
 	public function saveCsv() {
-	    if ($GLOBALS['ContentSummaryConfig']['autosaveCSV'] == 1)  {
+	    if ($this->config['autosaveCSV'] == 1)  {
 	        
             // open buffer
             $csvHandle = fopen('php://temp/maxmemory:'. (5*1024*1024), 'r+');
@@ -778,44 +924,30 @@ class ContentSummary	{
             }
 
 
-            // Ctype
-            if (is_array($this->data['Ctype'])  &&  count($this->data['Ctype']))    {
+            // CType
+            if (is_array($this->data['CType'])  &&  count($this->data['CType']))    {
                 
                 for ($i=0; $i<=3; $i++)  {  // leave 4 empty rows
                     fputcsv($csvHandle, []);
                 }
-            
-                fputcsv($csvHandle, ['Ctypes:', 'count_use:', 'pids:']);
-                foreach ($this->data['Ctype'] as $row)  {
-                    fputcsv($csvHandle, [$row['Ctype'], $row['count_use'], $row['pids']]);
-                }
-            }
-            
-            
-            // TV FCE
-            if (is_array($this->data[$this->TV_PREFIX.'_ds'])  &&  count($this->data[$this->TV_PREFIX.'_ds']))    {
-                
-                for ($i=0; $i<=3; $i++)  {  // leave 4 empty rows before
-                    fputcsv($csvHandle, []);
-                }
-                
-                fputcsv($csvHandle, ['Templavoila FCEs:', 'count_use:', 'pids:']);
-                foreach ($this->data[$this->TV_PREFIX.'_ds'] as $row)  {
-                    fputcsv($csvHandle, [$row[$this->TV_PREFIX.'_ds'], $row['count_use'], $row['pids']]);
+
+                fputcsv($csvHandle, ['CTypes:', 'count_use:', 'pids:']);
+                foreach ($this->data['CType'] as $row)  {
+                    fputcsv($csvHandle, [$row['CType'], $row['count_use'], $row['pids']]);
                 }
             }
             
             
             // Frames
-            if (is_array($this->data['section_frame'])  &&  count($this->data['section_frame']))    {
+            if (is_array($this->data[$this->TT_FRAME])  &&  count($this->data[$this->TT_FRAME]))    {
                 
                 for ($i=0; $i<=3; $i++)  {  // leave 4 empty rows
                     fputcsv($csvHandle, []);
                 }
 
                 fputcsv($csvHandle, ['CSC/FSC Frames', 'count_use:', 'pids:']);
-                foreach ($this->data['section_frame'] as $row)  {
-                    fputcsv($csvHandle, [$row['section_frame'], $row['count_use'], $row['pids']]);
+                foreach ($this->data[$this->TT_FRAME] as $row)  {
+                    fputcsv($csvHandle, [$row[$this->TT_FRAME], $row['count_use'], $row['pids']]);
                 }
             }
             
@@ -847,13 +979,41 @@ class ContentSummary	{
                 }
             }
             
+            
+            // TV FCE DS
+            if (is_array($this->data[$this->TV_PREFIX.'_ds'])  &&  count($this->data[$this->TV_PREFIX.'_ds']))    {
+                
+                for ($i=0; $i<=3; $i++)  {  // leave 4 empty rows before
+                    fputcsv($csvHandle, []);
+                }
+                
+                fputcsv($csvHandle, ['tt_content: TV FCE DSs:', 'count_use:', 'pids:']);
+                foreach ($this->data[$this->TV_PREFIX.'_ds'] as $row)  {
+                    fputcsv($csvHandle, [$row[$this->TV_PREFIX.'_ds'], $row['count_use'], $row['pids']]);
+                }
+            }
+			
+            
+            // TV FCE TO
+            if (is_array($this->data[$this->TV_PREFIX.'_to'])  &&  count($this->data[$this->TV_PREFIX.'_to']))    {
+                
+                for ($i=0; $i<=3; $i++)  {  // leave 4 empty rows before
+                    fputcsv($csvHandle, []);
+                }
+                
+                fputcsv($csvHandle, ['tt_content: TV FCE TOs:', 'count_use:', 'pids:']);
+                foreach ($this->data[$this->TV_PREFIX.'_to'] as $row)  {
+                    fputcsv($csvHandle, [$row[$this->TV_PREFIX.'_to'] .' / '. $row['to_title'], $row['count_use'], $row['pids']]);
+                }
+            }
+
 
             // catch streamed output from buffer and save it by ourselves at once
             rewind($csvHandle);
             $csv = stream_get_contents($csvHandle);
 
             
-            $savePath = $GLOBALS['ContentSummaryConfig']['fileDumpPath'] . 'content_summary-'.date('Ymd-His').'.csv';
+            $savePath = $this->config['fileDumpPath'] . 'content_summary-'.date('Ymd-His').'.csv';
             if (false === file_put_contents($savePath, $csv)) {
                 $this->messages[] = 'Autosave CSV failed! Can\'t write file to path: ' . $savePath;
             }
@@ -863,15 +1023,15 @@ class ContentSummary	{
 
 
 
+if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 
-
-// GO
-
-
-$WorkObject = new ContentSummary();
-$pageContent = $WorkObject->handleRequestsAndCompileContent();
-
-ob_start();
+	// GO
+	
+	
+	$WorkObject = new ContentSummary($GLOBALS['ContentSummaryConfig']);
+	$pageContent = $WorkObject->handleRequestsAndCompileContent();
+	
+	ob_start();
 
 
 
@@ -1012,19 +1172,23 @@ tr.field_marked td {
 </head>
 <body>
     <?php print $pageContent; ?>
+
+	<p>v<?=CONTENT_SUMMARY_VERSION?></p>
 </body>
 </html><?php
 
-// catch output (with placeholders to insert ie. messages or errors)
-$html = ob_get_contents();
-ob_clean();
+	// catch output (with placeholders to insert ie. messages or errors)
+	$html = ob_get_contents();
+	ob_clean();
+	
+	// save that output to file, but with removed placeholders (not used there, in static file) 
+	$WorkObject->saveOutput($WorkObject->cleanupPlaceholders($html));
+	$WorkObject->saveCsv();
+	
+	// but the original var still has them, so replace with values now, maybe we got some errors from saving these files 
+	$html = $WorkObject->replacePlaceholders($html);
+	
+	// send to browser final content
+	print $html;
 
-// save that output to file, but with removed placeholders (not used there, in static file) 
-$WorkObject->saveOutput($WorkObject->cleanupPlaceholders($html));
-$WorkObject->saveCsv();
-
-// but the original var still has them, so replace with values now, maybe we got some errors from saving these files 
-$html = $WorkObject->replacePlaceholders($html);
-
-// send to browser final content
-print $html;
+}

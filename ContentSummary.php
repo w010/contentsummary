@@ -1,11 +1,14 @@
 <?php
 /**
- * WTP TYPO3 Content Summary
- * v0.10
+ * ContentSummary - record types use cases tracker for TYPO3
+ *  
+ * v0.11
  * WTP / wolo.pl '.' studio 2021
+ * 
+ * https://github.com/w010/contentsummary
  */
 
-define ('CONTENT_SUMMARY_VERSION', '0.10.0');
+define ('CONTENT_SUMMARY_VERSION', '0.11.0');
 
 /** - Prepare a clear table of found content types, plugins, FCEs, frames.
  * - What is used where and how many of them (...you'll have to repair, if you broke it.)
@@ -33,10 +36,10 @@ define ('CONTENT_SUMMARY_VERSION', '0.10.0');
 if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 
 	// Uncomment when needed
-	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
-	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
-	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
-	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
+	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
+	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
+	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
+	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
 
 
 
@@ -73,7 +76,7 @@ $GLOBALS['ContentSummaryConfigDefault'] = [
 
     // dump output on every run. you will come back here anyway to check something you forgot, so maybe just keep this on 
     'autosaveHTML' => 0,
-    'autosaveCSV' => 1,
+    'autosaveCSV' => 0,
 
     // where to save, if not to current dir
     'fileDumpPath' => '',
@@ -202,7 +205,7 @@ class ContentSummary	{
 					$sectionContent = '';
 		
 					// generate html output
-					$sectionContent .= '<table class="item-types-summary">'.LF;
+					$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 					$sectionContent .=   '<tr>'.LF;
 					$sectionContent .=      '<th>'. 'list_type:' .'</th>'.LF;
 					$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
@@ -218,7 +221,7 @@ class ContentSummary	{
 						foreach (explode(', ', $item['pids']) as $i => $pid)  {
 							$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
 						}
-						$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+						$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 						$sectionContent .= '</tr>'.LF;
 					}
 					
@@ -256,7 +259,7 @@ class ContentSummary	{
 					$sectionContent = '';
 					
 					// generate html output
-					$sectionContent .= '<table class="item-types-summary">'.LF;
+					$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 					$sectionContent .=   '<tr>'.LF;
 					$sectionContent .=      '<th>'. 'CType:' .'</th>'.LF;
 					$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
@@ -272,7 +275,7 @@ class ContentSummary	{
 						foreach (explode(', ', $item['pids']) as $i => $pid)  {
 							$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
 						}
-						$sectionContent .=   '<td>' . implode(', ', $pidsLinked) . '</td>'.LF;
+						$sectionContent .=   '<td class="pids">' . implode(' ', $pidsLinked) . '</td>'.LF;
 						$sectionContent .= '</tr>'.LF;
 					}
 					
@@ -310,7 +313,7 @@ class ContentSummary	{
 						$sectionContent = '';
 						
 						// generate html output
-						$sectionContent .= '<table class="item-types-summary">'.LF;
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 						$sectionContent .=   '<tr>'.LF;
 						$sectionContent .=      '<th>'. $this->TT_FRAME.':' .'</th>'.LF;
 						$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
@@ -326,7 +329,7 @@ class ContentSummary	{
 							foreach (explode(', ', $item['pids']) as $i => $pid)  {
 								$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
 							}
-							$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 							$sectionContent .= '</tr>'.LF;
 						}
 						
@@ -368,7 +371,7 @@ class ContentSummary	{
 						$sectionContent = '';
 						
 						// generate html output
-						$sectionContent .= '<table class="item-types-summary">'.LF;
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 						$sectionContent .=   '<tr>'.LF;
 						$sectionContent .=      '<th>'. 'imageorient:' .'</th>'.LF;
 						$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
@@ -384,7 +387,7 @@ class ContentSummary	{
 							foreach (explode(', ', $item['pids']) as $i => $pid)  {
 								$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
 							}
-							$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 							$sectionContent .= '</tr>'.LF;
 						}
 		
@@ -424,7 +427,7 @@ class ContentSummary	{
 					$sectionContent = '';
 					
 					// generate html output
-					$sectionContent .= '<table class="item-types-summary">'.LF;
+					$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 					$sectionContent .=   '<tr>'.LF;
 					$sectionContent .=      '<th>'. 'header_layout:' .'</th>'.LF;
 					$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
@@ -441,7 +444,7 @@ class ContentSummary	{
 						foreach (explode(', ', $item['pids']) as $i => $pid)  {
 							$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
 						}
-						$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+						$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 						$sectionContent .= '</tr>'.LF;
 					}
 					
@@ -481,7 +484,7 @@ class ContentSummary	{
 						$sectionContent = '';
 						
 						// generate html output
-						$sectionContent .= '<table class="item-types-summary">'.LF;
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 						$sectionContent .=   '<tr>'.LF;
 						$sectionContent .=      '<th>'. $this->TV_PREFIX.'_ds:' .'</th>'.LF;
 						$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
@@ -497,7 +500,7 @@ class ContentSummary	{
 							foreach (explode(', ', $item['pids']) as $i => $pid)  {
 								$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
 							}
-							$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 							$sectionContent .= '</tr>'.LF;
 						}
 						
@@ -540,7 +543,7 @@ class ContentSummary	{
 						$sectionContent = '';
 						
 						// generate html output
-						$sectionContent .= '<table class="item-types-summary">'.LF;
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 						$sectionContent .=   '<tr>'.LF;
 						$sectionContent .=      '<th>'. $this->TV_PREFIX.'_to:' .'</th>'.LF;
 						$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
@@ -556,7 +559,7 @@ class ContentSummary	{
 							foreach (explode(', ', $item['pids']) as $i => $pid)  {
 								$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
 							}
-							$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 							$sectionContent .= '</tr>'.LF;
 						}
 						
@@ -598,7 +601,7 @@ class ContentSummary	{
 						$sectionContent = '';
 						
 						// generate html output
-						$sectionContent .= '<table class="item-types-summary">'.LF;
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 						$sectionContent .=   '<tr>'.LF;
 						$sectionContent .=      '<th>'. $this->TV_PREFIX.'_ds:' .'</th>'.LF;
 						$sectionContent .=      '<th>'. $this->TV_PREFIX.'_next_ds:' .'</th>'.LF;
@@ -616,7 +619,7 @@ class ContentSummary	{
 							foreach (explode(', ', $item['pids']) as $i => $pid)  {
 								$pidsLinked[] =     '<a href="'. $this->urlAction('pageDetails', ['recordUid' => $pid]) .'" target="_blank">'. $pid .'</a>'.LF;
 							}
-							$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 							$sectionContent .= '</tr>'.LF;
 						}
 						
@@ -658,7 +661,7 @@ class ContentSummary	{
 						$sectionContent = '';
 						
 						// generate html output
-						$sectionContent .= '<table class="item-types-summary">'.LF;
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
 						$sectionContent .=   '<tr>'.LF;
 						$sectionContent .=      '<th>'. $this->TV_PREFIX.'_to:' .'</th>'.LF;
 						$sectionContent .=      '<th>'. $this->TV_PREFIX.'_next_to:' .'</th>'.LF;
@@ -676,7 +679,7 @@ class ContentSummary	{
 							foreach (explode(', ', $item['pids']) as $i => $pid)  {
 								$pidsLinked[] =     '<a href="'. $this->urlAction('pageDetails', ['recordUid' => $pid]) .'" target="_blank">'. $pid .'</a>'.LF;
 							}
-							$sectionContent .=   '<td>'. implode(', ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
 							$sectionContent .= '</tr>'.LF;
 						}
 						
@@ -706,6 +709,11 @@ class ContentSummary	{
 		}
 		return $url
 			. (count($paramPairs)  ?  '&'. implode('&', $paramPairs) : '');
+	}
+
+
+	protected function urlStartScreen()	{
+		return $_SERVER['SCRIPT_NAME'];
 	}
 
 
@@ -833,15 +841,22 @@ class ContentSummary	{
             $pidsContainingSuchItems[$i]['rootline'] = array_reverse($rootline);
             $rootlineBreadcrumb = '';
             // draw rootline breadcrumbs
-            foreach ($pidsContainingSuchItems[$i]['rootline'] as $page) {
+            foreach ($pidsContainingSuchItems[$i]['rootline'] as $_r => $page) {
+            	$rootline_item_class = '';
+            	// check if previous item on the same level was the same page
+				if ($page['uid']  &&  is_array($pidsContainingSuchItems[$i - 1])  &&  $page['uid'] === $pidsContainingSuchItems[$i - 1]['rootline'][$_r]['uid'])	{
+					// the same page - mark with class to dim it for readability
+					$rootline_item_class = ' repeats-previous-row-item';
+				}
                 $rootlineBreadcrumb .= '<div class="rootline_item' 
                     . ($page['hidden'] ? ' hidden' : '')
                     . ($page['deleted'] ? ' deleted' : '')
+					. $rootline_item_class
                     . '">'
-                        . '<a href="' . $this->urlSite($page['uid']) . '" target="_blank">'
+                        . '<a href="' . $this->urlSite($page['uid']) . '" class="page-title" target="_blank">'
                         	. $page['title']
                         . '</a>'
-                        . '<br><span class="page-uid">
+                        . '<span class="page-uid">
 									[ <a href="'.$this->urlAction('pageDetails', ['recordUid' => intval($page['uid'])]) . '" target="_blank">'. $page['uid'] .'</a> ]
 								</span>'
 							. '<span class="page-properties">'
@@ -1143,19 +1158,19 @@ class ContentSummary	{
 
 				case 'analyseRootline':
 					$this->action_analyseRootline();
-					$output .= '<h1>Analyse rootline</h1>'.LF;
+					$output .= '<h1 class="mono"><a href="'.$this->urlStartScreen().'">ContentSummary - Analyse rootline</a></h1>'.LF;
 					$output .= $this->getOutputContent('analyse', 'rootline');
 					break;
 					
 				case 'contentDetails':
 					$this->action_contentDetails();
-					$output .= '<h1>Content record details</h1>'.LF;
+					$output .= '<h1 class="mono"><a href="'.$this->urlStartScreen().'">ContentSummary - Content record details</a></h1>'.LF;
 					$output .= $this->getOutputContent('details', 'content');
 					break;
 				
 				case 'pageDetails':
 					$this->action_pageDetails();
-					$output .= '<h1>Page record details</h1>'.LF;
+					$output .= '<h1 class="mono"><a href="'.$this->urlStartScreen().'">ContentSummary - Page record details</a></h1>'.LF;
 					$output .= $this->getOutputContent('details', 'page');
 					break;
 
@@ -1171,53 +1186,53 @@ class ContentSummary	{
         else	{
 			$this->collectSummaryData();
 			
-			$output .= '<h1>Project item types summary</h1>'.LF; 
+			$output .= '<h1 class="mono"><a href="'.$this->urlStartScreen().'">ContentSummary - Record types used</a></h1>'.LF; 
 			$output .= '###PLACEHOLDER_MESSAGE###';
 			$output .= '###PLACEHOLDER_DOWNLOAD_CSV###';
 
 			if (in_array(self::CE_PLUGIN, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>tt_content - Plugin types:</h2>'.LF;
+				$output .= '<h2 class="mono">tt_content - Plugin types:</h2>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_PLUGIN);
 			}
 			
 			if (in_array(self::CE_CTYPE, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>tt_content - CTypes:</h2>'.LF;
+				$output .= '<h2 class="mono">tt_content - CTypes:</h2>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_CTYPE);
 			}
 			
 			if (in_array(self::CE_FRAME, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>tt_content - Frames:</h2>'.LF;
+				$output .= '<h2 class="mono">tt_content - Frames:</h2>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_FRAME);
 			}
 			
 			if (in_array(self::CE_IMAGEORIENT, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>tt_content - Image orient:</h2>'.LF;
+				$output .= '<h2 class="mono">tt_content - Image orient:</h2>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_IMAGEORIENT);
 			}
 			
 			if (in_array(self::CE_HEADERLAYOUT, $this->config['makeSummaryFor']))	{
-				$output .= '<h2>tt_content - Header layout:</h2>'.LF;
+				$output .= '<h2 class="mono">tt_content - Header layout:</h2>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_HEADERLAYOUT);
 			}
 			
 			if (in_array(self::CE_TEMPLAVOILA_DS, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>tt_content - Templavoila FCE DS:</h2>'.LF;
+				$output .= '<h2 class="mono">tt_content - Templavoila FCE DS:</h2>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_TEMPLAVOILA_DS);
 			}
 			
 			if (in_array(self::CE_TEMPLAVOILA_TO, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>tt_content - Templavoila FCE TO:</h2>'.LF;
+				$output .= '<h2 class="mono">tt_content - Templavoila FCE TO:</h2>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_TEMPLAVOILA_TO);
 			}
 			
 			if (in_array(self::PAGE_TEMPLAVOILA_DS, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>pages - Templavoila DS:</h2>'.LF;
+				$output .= '<h2 class="mono">pages - Templavoila DS:</h2>'.LF;
 				$output .= '<p title="I really couldn\'t find better solution for that query"><i>(grouped by pairs _ds + _next_ds)</i></p>'.LF;
 				$output .= $this->getOutputContent('summary', self::PAGE_TEMPLAVOILA_DS);
 			}
 			
 			if (in_array(self::PAGE_TEMPLAVOILA_TO, $this->config['makeSummaryFor']))   {
-				$output .= '<h2>pages - Templavoila TO:</h2>'.LF;
+				$output .= '<h2 class="mono">pages - Templavoila TO:</h2>'.LF;
 				$output .= '<p><i>(grouped by pairs _to + _next_to)</i></p>'.LF;
 				$output .= $this->getOutputContent('summary', self::PAGE_TEMPLAVOILA_TO);
 			}
@@ -1274,7 +1289,7 @@ class ContentSummary	{
 
 	    $placeholders = [
 	        '###PLACEHOLDER_MESSAGE###' => '<p class="message">' . implode('<br>', $this->messages) . '</p>',
-	        '###PLACEHOLDER_DOWNLOAD_CSV###' => '<p><a href="'. $this->urlAction('downloadCsv') .'" target="_blank">Download CSV</a></p>',
+	        '###PLACEHOLDER_DOWNLOAD_CSV###' => '<p>[ <a href="'. $this->urlAction('downloadCsv') .'" target="_blank">DOWNLOAD CSV</a> ]</p>',
         ];
 
 	    return str_replace(array_keys($placeholders), array_values($placeholders), $html);
@@ -1529,7 +1544,7 @@ if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 
 ?><html lang="en">
 <head>
-    <title>Content Summary</title>
+    <title>ContentSummary</title>
     <style>
 html, body {
     height: 100%;
@@ -1548,10 +1563,11 @@ body {
 }
 
 body {
-    background: #fff;
-    color: #222;
+    background: #ececec;
+    color: #252525;
     cursor: auto;
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    /*font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;*/
+    font-family: Verdana, Arial, Helvetica, sans-serif;
     font-style: normal;
     font-weight: normal;
     line-height: 1.5;
@@ -1562,7 +1578,7 @@ table {
     margin-bottom: 20px;
 }
 td  {
-    border: 1px solid #ddd;
+    border: 1px solid #cdcdcd;
     padding: 3px 6px;
     vertical-align: top;
     font-size: 0.8em;
@@ -1584,6 +1600,7 @@ a:hover   {
 }
 .mono   {
     font-family: "Lucida Console", monospace, sans-serif;
+    /*font-family: Menlo, Monaco, Consolas, "Courier New", "Lucida Console", monospace, sans-serif;*/
     line-height: 1.2em;
 }
 tr.field_marked td {
@@ -1593,10 +1610,14 @@ tr.field_dim td {
     opacity: 0.4;
 }
 .rootline_breadcrumb    {
-    border: 1px dotted gray;
+    border: 1px dotted #727272;
     padding: 4px 4px;
     margin-bottom: 10px;
-    background: #f3f2f2;
+    background: #d1d1d1;
+
+	width: 100%;
+    min-width: max-content;
+	overflow-x: auto;
 }
 .rootline_breadcrumb > *    {
     float: left;
@@ -1608,10 +1629,15 @@ tr.field_dim td {
 }
 .rootline_item  {
     margin: 2px 12px 2px 2px;
-    padding: 0 20px;
+    padding: 0 14px 2px;
     border: 1px solid #8da6ce;
     background: #fff;
     position: relative;
+	
+	display: inline-block;
+    word-break: keep-all;
+    white-space: nowrap;
+    overflow-wrap: break-word;
 }
 	.rootline_item:not(:first-child)  {
 		margin-left: 26px;
@@ -1640,12 +1666,24 @@ tr.field_dim td {
     background: #ffe8b3;
     color: #d08914;
 }
+.rootline_item.repeats-previous-row-item {
+    opacity: .1;
+}
 .rootline_item a    {
     color: inherit;
 }
 .rootline_item a:hover    {
     color: #000;
     text-decoration: underline;
+}
+/* linked page title. I used it for fix width, because overflow:hidden
+	on rootline_item block hides my :before */
+.rootline_item > a    {
+	width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+	display: block;
 }
 .rootline_item .page-properties {
 	display: inline-block;
@@ -1657,8 +1695,10 @@ tr.field_dim td {
     font-size: 0.9em;
 	/* interesting property - makes the element be "ignored" in laying out its contents, they behave like they are direct children of their grandparent.
 		all block settings from here are then ignored, but the content wraps properly now */ 
-	display: contents;
-	word-break: break-word;
+	/*display: contents;*/
+	/*word-break: break-word;*/
+
+	display: inline-block;
 }
 .these-items .records   {
 	/*display: inline-block;*/
@@ -1679,6 +1719,9 @@ tr.field_dim td {
 .clear  {
     clear: both;
 }
+h1 a, h1 a:hover 	{
+	color: #000;
+}
     </style>
 </head>
 <body>
@@ -1687,8 +1730,8 @@ tr.field_dim td {
 
 
 	<br>
-	<p>ContentSummary v<?=CONTENT_SUMMARY_VERSION?><br>
-		'.' 2021</p>
+	<p class="mono">ContentSummary v<?=CONTENT_SUMMARY_VERSION?><br>
+	<a href="https://wolo.pl/">wps</a> / Binary Owl Forever '.' 2021</p>
 </body>
 </html><?php
 

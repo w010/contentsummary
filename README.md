@@ -1,6 +1,6 @@
 
 # ContentSummary - Record types use cases tracking tool for TYPO3
-### v0.11
+### v0.13
 #### WTP / Binary Owl Forever / wolo.pl '.' studio 2021
 
 

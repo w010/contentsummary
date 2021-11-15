@@ -2,13 +2,15 @@
 /**
  * ContentSummary - record types use cases tracker for TYPO3
  *  
- * v0.11
+ * v0.13
  * WTP / wolo.pl '.' studio 2021
  * 
  * https://github.com/w010/contentsummary
  */
 
-define ('CONTENT_SUMMARY_VERSION', '0.11.0');
+namespace WTP;
+
+const CONTENT_SUMMARY_VERSION = '0.13.0';
 
 /** - Prepare a clear table of found content types, plugins, FCEs, frames.
  * - What is used where and how many of them (...you'll have to repair, if you broke it.)
@@ -36,10 +38,10 @@ define ('CONTENT_SUMMARY_VERSION', '0.11.0');
 if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 
 	// Uncomment when needed
-	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
-	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
-	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
-	//$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
 
 
 
@@ -71,8 +73,10 @@ $GLOBALS['ContentSummaryConfigDefault'] = [
 	// typo3 major version - to auto handle db structure differences, like frame class or templavoila naming
 	'versionCompat' => 10,
 
-    // for handy links feature. set own by hand, if bad url in subdir-projects
+    // for handy frontend links feature. set own by hand, if bad url in subdir-projects
     'baseDomain' => 'https://' . $_SERVER['HTTP_HOST'],
+
+	// 'urlActionBase'
 
     // dump output on every run. you will come back here anyway to check something you forgot, so maybe just keep this on 
     'autosaveHTML' => 0,
@@ -104,6 +108,7 @@ $GLOBALS['ContentSummaryConfig'] = array_merge($GLOBALS['ContentSummaryConfigDef
 
 
 
+
 /**
  * Where the whole magic happens
  */
@@ -128,7 +133,7 @@ class ContentSummary	{
 	const PAGE_TEMPLAVOILA_TO = 'page_tv_to'; 
 
 
-	/** @var PDO */
+	/** @var \PDO */
 	protected $db;
 
 	/**
@@ -160,10 +165,10 @@ class ContentSummary	{
 
 	public function __construct(array $config) {
 		$this->config = $config;
-		if (!$config['mode_include'])	{
+		//if (!$config['mode_include'])	{	// just connect again... easier, faster, and it really doesn't make any difference
 			// connect to db
 			$this->databaseConnect();
-		}
+		//}
 		defined('LF') ?: define('LF', chr(10));
 		
 		if ($this->config['versionCompat'] == 6)	{
@@ -197,7 +202,7 @@ class ContentSummary	{
 					GROUP BY ce.list_type
 				");
 				$query->execute();
-				$query->setFetchMode(PDO::FETCH_ASSOC);
+				$query->setFetchMode(\PDO::FETCH_ASSOC);
 				$data = $query->fetchAll();
 
 
@@ -251,7 +256,7 @@ class ContentSummary	{
 					GROUP BY ce.CType
 				");
 				$query->execute();
-				$query->setFetchMode(PDO::FETCH_ASSOC);
+				$query->setFetchMode(\PDO::FETCH_ASSOC);
 				$data = $query->fetchAll();
 
 
@@ -305,7 +310,7 @@ class ContentSummary	{
 						GROUP BY ce.{$this->TT_FRAME}
 					");
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$data = $query->fetchAll();
 
 
@@ -363,7 +368,7 @@ class ContentSummary	{
 						ORDER BY (ce.imageorient * 1)
 					");
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$data = $query->fetchAll();
 
 
@@ -419,7 +424,7 @@ class ContentSummary	{
 					ORDER BY (ce.header_layout * 1), ce.header_layout
 				");
 				$query->execute();
-				$query->setFetchMode(PDO::FETCH_ASSOC);
+				$query->setFetchMode(\PDO::FETCH_ASSOC);
 				$data = $query->fetchAll();
 		
 
@@ -476,7 +481,7 @@ class ContentSummary	{
 						ORDER BY ce.{$this->TV_PREFIX}_ds
 					");
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$data = $query->fetchAll();
 
 
@@ -535,7 +540,7 @@ class ContentSummary	{
 						ORDER BY ce.{$this->TV_PREFIX}_to
 					");
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$data = $query->fetchAll();
 
 
@@ -593,7 +598,7 @@ class ContentSummary	{
 						ORDER BY p.{$this->TV_PREFIX}_ds, p.{$this->TV_PREFIX}_next_ds
 					");
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$data = $query->fetchAll();
 
 
@@ -653,7 +658,7 @@ class ContentSummary	{
 						ORDER BY p.{$this->TV_PREFIX}_to, p.{$this->TV_PREFIX}_next_to
 					");
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$data = $query->fetchAll();
 
 
@@ -690,7 +695,7 @@ class ContentSummary	{
 					}
 				}
 			}
-		} catch(PDOException $e) {
+		} catch(\PDOException $e) {
 			$this->messages[] = "SQL/PDO Error: " . $e->getMessage();
 		}
 	}
@@ -702,18 +707,23 @@ class ContentSummary	{
 
 
 	protected function urlAction($action, $params = [])	{
-		$url = '?action='.$action;
+		// if run in a context, from some other code, probably before our params we need that run context's url
+		$urlActionBase = $this->config['urlActionBase'];
+		$_l = parse_url($urlActionBase);
+		$url = $urlActionBase . ($_l['query']?'&':'?');
+
+		$params = ['action' => $action] + $params;
+
 		$paramPairs = [];
 		foreach ($params as $param => $value)	{
 			$paramPairs[] = $param .'='. urlencode($value);
 		}
-		return $url
-			. (count($paramPairs)  ?  '&'. implode('&', $paramPairs) : '');
+		return $url . implode('&', $paramPairs);
 	}
 
 
 	protected function urlStartScreen()	{
-		return $_SERVER['SCRIPT_NAME'];
+		return $this->config['urlLinkBase'] ?? $_SERVER['SCRIPT_NAME'];
 	}
 
 
@@ -727,7 +737,7 @@ class ContentSummary	{
 		}
 
         $availableGroupKeys = [
-        	'page' => [$this->TV_PREFIX.'_ds', $this->TV_PREFIX.'_to'],
+        	'page' => [$this->TV_PREFIX.'_ds', $this->TV_PREFIX.'_to', 'tx_fed_page_controller_action', 'tx_fed_page_controller_action_sub'],
         	'content' => ['CType', 'list_type', $this->TV_PREFIX.'_ds', $this->TV_PREFIX.'_to', $this->TT_FRAME, 'imageorient', 'header_layout'],
 		];
 	    $tableFieldGroupKey = in_array($_GET['groupKey'], $availableGroupKeys[$itemType]) ? $_GET['groupKey'] : 'INVALID_GROUP_FIELD_KEY';		// will cause sql error, and ok
@@ -779,9 +789,9 @@ class ContentSummary	{
 					");
 					$this->debug['rootlineAnalyse']['sql'] = $query->queryString;
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$pidsContainingSuchItems = $query->fetchAll();
-				} catch(PDOException $e) {
+				} catch(\PDOException $e) {
 					$this->messages[] = "Error: " . $e->getMessage();
 				}
 				break;
@@ -807,9 +817,9 @@ class ContentSummary	{
 					");
 					$this->debug['rootlineAnalyse']['sql'] = $query->queryString;
 					$query->execute();
-					$query->setFetchMode(PDO::FETCH_ASSOC);
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
 					$pidsContainingSuchItems = $query->fetchAll();
-				} catch(PDOException $e) {
+				} catch(\PDOException $e) {
 					$this->messages[] = "Error: " . $e->getMessage();
 				}
 
@@ -918,7 +928,13 @@ class ContentSummary	{
             $sectionContent .= $rootlineBreadcrumb ? $rootlineBreadcrumb : '<div class="rootline_item warning">No pagetree rootline found for this path. No such pages in database.<br> Was removed manually? Looking for pid / page uid = ' . $item['pid'] . '</div>';
             $itemUids = [];
             foreach ($item['uids'] ? explode(',', $item['uids']) : [] as $ttcontentUid)   {
-                $itemUids[] = '<a href="'.$this->urlAction('contentDetails', ['recordUid' => intval($ttcontentUid)]) . '">' . intval($ttcontentUid) . '</a>';
+            	$ttcontentRow = ['uid' => $ttcontentUid];
+            	if (1)	{
+            		// get ttcontent essential details
+            		$ttcontentRow = $this->getRecord('uid, hidden', 'tt_content', $ttcontentUid);
+				}
+            	
+                $itemUids[] = '<a href="'.$this->urlAction('contentDetails', ['recordUid' => intval($ttcontentUid)]) . '" class="'.($ttcontentRow['hidden'] ? 'ce-hidden' : '').'">' . intval($ttcontentUid) . '</a>';
             }
             $sectionContent .= ($item['uids'] ? '<div class="these-items"><span class="records">tt_content uids: '.implode(', ', $itemUids).'</span></div>' : '');
             $sectionContent .= '<br class="clear"> </div>';
@@ -926,7 +942,7 @@ class ContentSummary	{
         
 	    
 	    $this->setOutputContent('analyse', 'rootline', $sectionHeader
-            . ($typeIsVisibleAtLeastOnce ? '' : '<p>- <b>It seems, that this content type is not present in any visible pagetree. You can consider disabling/removing this functionality (if it\'s not just sql error)</b></p>')
+            . ($typeIsVisibleAtLeastOnce ? '' : '<p>- <b>If you don\'t see any errors above, it seems that this content type/page field value is not present in any visible pagetree. You can consider disabling/removing this functionality (if it\'s not just sql error)</b></p>')
             . $sectionContent);
     }
 
@@ -939,20 +955,9 @@ class ContentSummary	{
 	    $sectionHeader = '<h4>Record view <i>(* some fields may be preparsed for readability)</i></h4>';
 	    $sectionContent = '';
 
-	    $row = [];
-        try {
-			$query = $this->db->prepare("
-				SELECT t.*
-				FROM `tt_content` AS t
-				WHERE t.uid = {$uid}
-			");
-			$query->execute();
-			$query->setFetchMode(PDO::FETCH_ASSOC);
-			$row = $query->fetchAll()[0] ?: [];
-		} catch (PDOException $e) {
-			$this->messages[] = "Error: " . $e->getMessage();
-		}
-		
+	    $row = $this->getRecord('*', 'tt_content', $uid);
+
+
         $sectionContent .= '<table class="mono">';
 		foreach ($row as $fieldname => $value)    {
             $fieldMarked = false;
@@ -973,7 +978,7 @@ class ContentSummary	{
                     break;
                 case $this->TV_PREFIX.'_ds':
                 case $this->TV_PREFIX.'_to':
-                    $fieldMarked = $value ? true : false;
+                    $fieldMarked = (bool) $value;
                     break;
                 case 'tstamp':
                 case 'crdate':
@@ -990,8 +995,9 @@ class ContentSummary	{
                 case 'pi_flexform':
                 case $this->TV_PREFIX.'_flex':
                     if ($value) {
+	                	$fieldMarked = true;
                         $fieldProcessed = true;
-                        $dom = new DOMDocument;
+                        $dom = new \DOMDocument;
                         $dom->preserveWhiteSpace = true;
                         $dom->formatOutput = true;
                         $dom->loadXML($value);
@@ -1032,9 +1038,9 @@ class ContentSummary	{
 				WHERE p.uid = {$uid}
 			");
 			$query->execute();
-			$query->setFetchMode(PDO::FETCH_ASSOC);
+			$query->setFetchMode(\PDO::FETCH_ASSOC);
 			$row = $query->fetchAll()[0] ?: [];
-		} catch (PDOException $e) {
+		} catch (\PDOException $e) {
 			$this->messages[] = "Error: " . $e->getMessage();
 		}
 		
@@ -1078,7 +1084,7 @@ class ContentSummary	{
                 case 'tx_fed_page_flexform_sub':
                     if ($value) {
                         $fieldProcessed = true;
-                        $dom = new DOMDocument;
+                        $dom = new \DOMDocument;
                         $dom->preserveWhiteSpace = true;
                         $dom->formatOutput = true;
                         $dom->loadXML($value);
@@ -1125,7 +1131,7 @@ class ContentSummary	{
 			    LIMIT 1
 			");
 			$query->execute();
-			$query->setFetchMode(PDO::FETCH_ASSOC);
+			$query->setFetchMode(\PDO::FETCH_ASSOC);
 			$pageRow = $query->fetch();
 			
 			// if valid row - collect
@@ -1138,12 +1144,33 @@ class ContentSummary	{
                 $this->buildUpRootline($rootline, $pageRow['pid'], $additionalFields);
             }
 
-		} catch(PDOException $e) {
+		} catch(\PDOException $e) {
 			$this->messages[] = "Error: " . $e->getMessage();
 		}
 		return $rootline;
     }
 
+
+    /**
+     * @param string $fields
+     * @param string string $table
+     * @param int $uid
+     * @return array|mixed|void
+     */
+    protected function getRecord($fields, $table, $uid)	{
+		try {
+			$query = $this->db->prepare("
+				SELECT {$fields}
+				FROM `{$table}`
+				WHERE uid = {$uid}
+			");
+			$query->execute();
+			$query->setFetchMode(\PDO::FETCH_ASSOC);
+			return $query->fetchAll()[0] ?: [];
+		} catch (\PDOException $e) {
+			$this->messages[] = "Error: " . $e->getMessage();
+		}
+    }
 
 	/**
 	 * Build final page content from prepared parts
@@ -1269,12 +1296,12 @@ class ContentSummary	{
 	
 	protected function databaseConnect()    {
 		try {
-		    $this->db = new PDO("mysql:host={$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host']};dbname={$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname']}",
+		    $this->db = new \PDO("mysql:host={$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host']};dbname={$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname']}",
 			    $GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'],
 			    $GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password']);
 			// set the PDO error mode to exception
-			$this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		} catch(PDOException $e) {
+			$this->db->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+		} catch(\PDOException $e) {
 		    die("ContentSummary: Database connection failed: " . $e->getMessage());
 		}
 	}
@@ -1526,26 +1553,12 @@ class ContentSummary	{
 	    exit;
 	}
 
-}
 
 
-
-if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
-
-	// GO
-	
-	
-	$WorkObject = new ContentSummary($GLOBALS['ContentSummaryConfig']);
-	$pageContent = $WorkObject->handleRequestsAndCompileContent();
-	
-	ob_start();
-
-
-
-?><html lang="en">
-<head>
-    <title>ContentSummary</title>
-    <style>
+	public function renderView_getCss()	{
+		// wrap in <style> tags is to make ide css formatting work
+		$css = <<<EOD
+<style>   
 html, body {
     height: 100%;
 }
@@ -1703,6 +1716,14 @@ tr.field_dim td {
 .these-items .records   {
 	/*display: inline-block;*/
 }
+.these-items .ce-hidden	{
+	text-decoration: line-through;
+	opacity: .8;
+}
+	.these-items .ce-hidden:hover	{
+		text-decoration: underline;
+		opacity: 1;
+	}
 .page-uid   {
     font-size: 0.9em;
 	vertical-align: top;
@@ -1722,22 +1743,47 @@ tr.field_dim td {
 h1 a, h1 a:hover 	{
 	color: #000;
 }
+</style>
+EOD;
+
+		return strip_tags($css);
+	}
+	
+	public function renderView_getDocument()	{
+		$css = $this->renderView_getCss();
+		$pageContent = $this->handleRequestsAndCompileContent();
+		$version = CONTENT_SUMMARY_VERSION;
+
+		return <<<EOD
+<html lang="en">
+<head>
+    <title>ContentSummary</title>
+    <style>
+$css
     </style>
 </head>
 <body>
 
-    <?php print $pageContent; ?>
-
+    $pageContent
 
 	<br>
-	<p class="mono">ContentSummary v<?=CONTENT_SUMMARY_VERSION?><br>
+	<p class="mono">ContentSummary v$version<br>
 	<a href="https://wolo.pl/">wps</a> / Binary Owl Forever '.' 2021</p>
 </body>
-</html><?php
+</html>
+EOD;
 
+	}
+}
+
+
+
+if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
+
+	// GO
+	$WorkObject = new ContentSummary($GLOBALS['ContentSummaryConfig']);
 	// catch output (with placeholders to insert ie. messages or errors)
-	$html = ob_get_contents();
-	ob_clean();
+	$html = $WorkObject->renderView_getDocument();
 	
 	// save that output to file, but with removed notifications placeholders (not used there, in static file) 
 	$WorkObject->saveOutput($WorkObject->cleanupPlaceholders($html));
@@ -1746,7 +1792,6 @@ h1 a, h1 a:hover 	{
 	// but the original var still has them, so replace with values now, maybe we got some errors from saving these files 
 	$html = $WorkObject->replacePlaceholders($html);
 	
-	// send to browser final content
+	// send final content to browser
 	print $html;
-
 }

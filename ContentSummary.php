@@ -10,7 +10,7 @@
 
 namespace WTP;
 
-const CONTENT_SUMMARY_VERSION = '0.13.0';
+const CONTENT_SUMMARY_VERSION = '0.13.1';
 
 /** - Prepare a clear table of found content types, plugins, FCEs, frames.
  * - What is used where and how many of them (...you'll have to repair, if you broke it.)
@@ -76,7 +76,7 @@ $GLOBALS['ContentSummaryConfigDefault'] = [
     // for handy frontend links feature. set own by hand, if bad url in subdir-projects
     'baseDomain' => 'https://' . $_SERVER['HTTP_HOST'],
 
-	// 'urlActionBase'
+	// 'urlLinkBase' => '',
 
     // dump output on every run. you will come back here anyway to check something you forgot, so maybe just keep this on 
     'autosaveHTML' => 0,
@@ -708,9 +708,9 @@ class ContentSummary	{
 
 	protected function urlAction($action, $params = [])	{
 		// if run in a context, from some other code, probably before our params we need that run context's url
-		$urlActionBase = $this->config['urlActionBase'];
-		$_l = parse_url($urlActionBase);
-		$url = $urlActionBase . ($_l['query']?'&':'?');
+		$urlLinkBase = $this->config['urlLinkBase'];
+		$_l = parse_url($urlLinkBase);
+		$url = $urlLinkBase . ($_l['query']?'&':'?');
 
 		$params = ['action' => $action] + $params;
 

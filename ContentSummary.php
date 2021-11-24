@@ -10,7 +10,7 @@
 
 namespace WTP;
 
-const CONTENT_SUMMARY_VERSION = '0.13.1';
+const CONTENT_SUMMARY_VERSION = '0.13.2';
 
 /** - Prepare a clear table of found content types, plugins, FCEs, frames.
  * - What is used where and how many of them (...you'll have to repair, if you broke it.)
@@ -96,6 +96,7 @@ $GLOBALS['ContentSummaryConfigDefault'] = [
 		ContentSummary::CE_TEMPLAVOILA_TO,
 		ContentSummary::PAGE_TEMPLAVOILA_DS,
 		ContentSummary::PAGE_TEMPLAVOILA_TO,
+		ContentSummary::PAGE_FLUX_ACTION,
 	],
 
 	// shows tech data, like sql queries
@@ -130,7 +131,8 @@ class ContentSummary	{
 	const CE_TEMPLAVOILA_TO = 'ce_tv_to';
 	// pages
 	const PAGE_TEMPLAVOILA_DS = 'page_tv_ds'; 
-	const PAGE_TEMPLAVOILA_TO = 'page_tv_to'; 
+	const PAGE_TEMPLAVOILA_TO = 'page_tv_to';
+	const PAGE_FLUX_ACTION = 'page_flux_templatelayout'; 
 
 
 	/** @var \PDO */
@@ -695,6 +697,64 @@ class ContentSummary	{
 					}
 				}
 			}
+
+
+
+			// SECTION: PAGE - Flux action/layout/template
+
+			if (in_array(self::PAGE_FLUX_ACTION, $this->config['makeSummaryFor']))	{
+
+				if (count($this->db->query("SHOW COLUMNS FROM `pages` LIKE 'tx_fed_page_controller_action'")->fetchAll())) {
+				
+					$query = $this->db->prepare("
+						SELECT p.tx_fed_page_controller_action, p.tx_fed_page_controller_action_sub,
+						   	COUNT(p.uid) AS count_use,
+							GROUP_CONCAT( DISTINCT p.uid SEPARATOR ', ') AS pids
+						FROM `pages` p
+						WHERE ( p.tx_fed_page_controller_action != ''  ||  p.tx_fed_page_controller_action_sub != '' )  
+							AND NOT p.deleted 		# AND NOT t.hidden
+						GROUP BY p.tx_fed_page_controller_action, p.tx_fed_page_controller_action_sub
+						ORDER BY p.tx_fed_page_controller_action, p.tx_fed_page_controller_action_sub
+					");
+					$query->execute();
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
+					$data = $query->fetchAll();
+
+
+					if (is_array($data) && count($data))  {
+						$sectionContent = '';
+						
+						// generate html output
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
+						$sectionContent .=   '<tr>'.LF;
+						$sectionContent .=      '<th>'. 'tx_fed_page_controller_action:' .'</th>'.LF;
+						$sectionContent .=      '<th>'. 'tx_fed_page_controller_action_sub' .'</th>'.LF;
+						$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
+						$sectionContent .=      '<th>'. 'page records: <i>(click = details)</i>' .'</th>'.LF;
+						$sectionContent .=   '</tr>'.LF;
+						
+						
+						foreach ($data as $item) {
+							$sectionContent .= '<tr>'.LF;
+							$sectionContent .=   '<td><a href="'. $this->urlAction('analyseRootline', ['groupKey' => 'tx_fed_page_controller_action', 'value' => $item['tx_fed_page_controller_action'], 'itemType' => 'page', 'additionalWhere' => 'OR tx_fed_page_controller_action_sub = "'.$item['tx_fed_page_controller_action'].'"']) .'" target="_blank">'. $item['tx_fed_page_controller_action'] .'<br>' .'</a></td>'.LF;
+							$sectionContent .=   '<td><a href="'. $this->urlAction('analyseRootline', ['groupKey' => 'tx_fed_page_controller_action', 'value' => $item['tx_fed_page_controller_action'], 'itemType' => 'page', 'additionalWhere' => 'OR tx_fed_page_controller_action_sub = "'.$item['tx_fed_page_controller_action'].'"']) .'" target="_blank">'. $item['tx_fed_page_controller_action_sub'] .'</a></td>'.LF;
+							$sectionContent .=   '<td>'. $item['count_use'] .'</td>'.LF;
+							$pidsLinked = [];
+							foreach (explode(', ', $item['pids']) as $i => $pid)  {
+								$pidsLinked[] =     '<a href="'. $this->urlAction('pageDetails', ['recordUid' => $pid]) .'" target="_blank">'. $pid .'</a>'.LF;
+							}
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .= '</tr>'.LF;
+						}
+						
+						$sectionContent .= '</table>'.LF;
+						$this->setOutputContent('summary', self::PAGE_FLUX_ACTION, $sectionContent);
+						$this->data[self::PAGE_FLUX_ACTION] = $data;
+						$this->debug[self::PAGE_FLUX_ACTION]['sql'] = $query->queryString;
+					}
+				}
+			}
+
 		} catch(\PDOException $e) {
 			$this->messages[] = "SQL/PDO Error: " . $e->getMessage();
 		}
@@ -1262,6 +1322,12 @@ class ContentSummary	{
 				$output .= '<h2 class="mono">pages - Templavoila TO:</h2>'.LF;
 				$output .= '<p><i>(grouped by pairs _to + _next_to)</i></p>'.LF;
 				$output .= $this->getOutputContent('summary', self::PAGE_TEMPLAVOILA_TO);
+			}
+			
+			if (in_array(self::PAGE_FLUX_ACTION, $this->config['makeSummaryFor']))   {
+				$output .= '<h2 class="mono">pages - Flux action:</h2>'.LF;
+				$output .= '<p><i>(grouped by pairs _action + _action_sub)</i></p>'.LF;
+				$output .= $this->getOutputContent('summary', self::PAGE_FLUX_ACTION);
 			}
 		}
 		

@@ -10,7 +10,7 @@
 
 namespace WTP;
 
-const CONTENT_SUMMARY_VERSION = '0.13.2';
+const CONTENT_SUMMARY_VERSION = '0.13.3';
 
 /** - Prepare a clear table of found content types, plugins, FCEs, frames.
  * - What is used where and how many of them (...you'll have to repair, if you broke it.)
@@ -199,6 +199,7 @@ class ContentSummary	{
 					FROM `tt_content` AS ce
 						JOIN `pages` AS p  ON p.uid = ce.pid
 					WHERE ce.list_type != ''
+					    AND CType = 'list'
 						AND NOT ce.deleted 		# AND NOT t.hidden
 						AND NOT p.deleted
 					GROUP BY ce.list_type
@@ -833,10 +834,19 @@ class ContentSummary	{
 						// filter contents with stored ds but are edited and not anymore of type fce
 						$additionalWhere = ' AND CType = "'.$this->TV_CTYPE.'"';
 					}
+                    if ($tableFieldGroupKey == 'list_type') {
+						// filter contents with stored ds but are edited and not anymore of type fce
+						$additionalWhere = ' AND CType = "list"';
+					}
 					if ($tableFieldGroupKey == 'imageorient') {
 						// filter contents with stored ds but are edited and not anymore of type fce
 						$additionalWhere = ' AND CType = "textpic"';
 					}
+
+                    if ($additionalWhere)   {
+                        $sectionHeader .= '<p class="mono"><i>Additional WHERE used: <b>'.$additionalWhere.'</b></i></p>';
+                    }
+
 					$query = $this->db->prepare("
 						SELECT ce.pid,
 							GROUP_CONCAT( DISTINCT ce.uid SEPARATOR ', ') AS uids
@@ -1279,6 +1289,7 @@ class ContentSummary	{
 
 			if (in_array(self::CE_PLUGIN, $this->config['makeSummaryFor']))   {
 				$output .= '<h2 class="mono">tt_content - Plugin types:</h2>'.LF;
+				$output .= '<p class="mono small" title="sometimes there\'s a case when beuser has changed content type, but list_type value remains. this is filtered by showing only plugin-type records"><i>(filtered by CType = \'list\')</i></p>'.LF;
 				$output .= $this->getOutputContent('summary', self::CE_PLUGIN);
 			}
 			

@@ -1,13 +1,13 @@
 
 # ContentSummary - Record types use cases tracking tool for TYPO3
-### v0.13
-#### WTP / Binary Owl Forever / wolo.pl '.' studio 2021
+### v0.14
+#### WTP / Binary Owl Forever / wolo.pl '.' studio 2023
 
 
 ## It helps you to:
 
 - Prepare a clear table of found content types, plugins, FCEs, frames.
-- What is used where and how many of them... (...you have to repair, if they're broken.)
+- What is used where and how many of them... (...you'll have to repair, if it breaks during update.)
 - Get direct links to each type examples - find them all quickly to control if they still work after update.
 - Whether that cave-era-accordion, which uses that old problematic js lib, is really still needed.
 - Analyze chart of rootline parents of all pages found containing selected contenttype/plugin to check if

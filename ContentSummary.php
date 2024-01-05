@@ -2,18 +2,18 @@
 /**
  * ContentSummary - record types use cases tracker for TYPO3
  *  
- * v0.13
- * WTP / wolo.pl '.' studio 2021
+ * v0.14
+ * WTP / wolo.pl '.' studio 2023
  * 
  * https://github.com/w010/contentsummary
  */
 
 namespace WTP;
 
-const CONTENT_SUMMARY_VERSION = '0.13.3';
+const CONTENT_SUMMARY_VERSION = '0.14.0';
 
 /** - Prepare a clear table of found content types, plugins, FCEs, frames.
- * - What is used where and how many of them (...you'll have to repair, if you broke it.)
+ * - What is used where and how many of them (...you'll have to repair, if it breaks during update.)
  * - Get direct links to each type examples - find them all quickly to control if they still work after update.
  * - Whether that cave-era-accordion, which uses that old problematic js lib, is really still needed.
  * - Analyze chart of rootline parents of all pages found containing selected contenttype/plugin to check if
@@ -45,15 +45,23 @@ if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 
 
 
-	// Local Config
+	// Local Config - uncomment and tune when needed, it overrides the default config which can be found below
 	$GLOBALS['ContentSummaryConfig'] = [
 		'autosaveCSV' => 0,
 		// 'versionCompat' => 6,
 		/*'makeSummaryFor' => [
-			//ContentSummary::CE_TEMPLAVOILA_TO,
-			//ContentSummary::PAGE_TEMPLAVOILA_DS,
-			//ContentSummary::PAGE_TEMPLAVOILA_TO,
-		],*/
+            ContentSummary::CE_PLUGIN,
+            ContentSummary::CE_CTYPE,
+            ContentSummary::CE_FRAME,
+            ContentSummary::CE_HEADERLAYOUT,
+            ContentSummary::CE_IMAGEORIENT,
+            ContentSummary::CE_TEMPLAVOILA_DS,
+            ContentSummary::CE_TEMPLAVOILA_TO,
+            ContentSummary::PAGE_TEMPLAVOILA_DS,
+            ContentSummary::PAGE_TEMPLAVOILA_TO,
+            ContentSummary::PAGE_FLUX_ACTION,
+            ContentSummary::DCE,
+        ],*/
 		'debug' => 0,
 	];
 
@@ -71,7 +79,7 @@ if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 $GLOBALS['ContentSummaryConfigDefault'] = [
 
 	// typo3 major version - to auto handle db structure differences, like frame class or templavoila naming
-	'versionCompat' => 10,
+	'versionCompat' => 11,
 
     // for handy frontend links feature. set own by hand, if bad url in subdir-projects
     'baseDomain' => 'https://' . $_SERVER['HTTP_HOST'],
@@ -97,6 +105,7 @@ $GLOBALS['ContentSummaryConfigDefault'] = [
 		ContentSummary::PAGE_TEMPLAVOILA_DS,
 		ContentSummary::PAGE_TEMPLAVOILA_TO,
 		ContentSummary::PAGE_FLUX_ACTION,
+		ContentSummary::CE_DCE,
 	],
 
 	// shows tech data, like sql queries
@@ -129,10 +138,12 @@ class ContentSummary	{
 	const CE_IMAGEORIENT = 'ce_imageorient';
 	const CE_TEMPLAVOILA_DS = 'ce_tv_ds';
 	const CE_TEMPLAVOILA_TO = 'ce_tv_to';
+	const CE_DCE = 'ce_dce'; 
 	// pages
 	const PAGE_TEMPLAVOILA_DS = 'page_tv_ds'; 
 	const PAGE_TEMPLAVOILA_TO = 'page_tv_to';
-	const PAGE_FLUX_ACTION = 'page_flux_templatelayout'; 
+	const PAGE_FLUX_ACTION = 'page_flux_templatelayout';
+
 
 
 	/** @var \PDO */
@@ -756,6 +767,65 @@ class ContentSummary	{
 				}
 			}
 
+
+
+			// SECTION: OTHER - DCE types
+
+			if (in_array(self::CE_DCE, $this->config['makeSummaryFor']))	{
+
+				if (count($this->db->query("SHOW COLUMNS FROM `tt_content` LIKE 'tx_dce_dce'")->fetchAll())) {
+				
+					$query = $this->db->prepare("
+						SELECT ce.tx_dce_dce,
+						   	COUNT(ce.uid) AS count_use, 
+							GROUP_CONCAT( DISTINCT ce.pid SEPARATOR ', ') AS pids,
+						   	dce.title AS dce_title
+						FROM `tt_content` AS ce
+							JOIN `pages` AS p  ON p.uid = ce.pid
+							JOIN `tx_dce_domain_model_dce` AS dce  ON dce.uid = ce.tx_dce_dce
+						WHERE ce.CType LIKE 'dce_dceuid%'
+							AND NOT ce.deleted 
+							AND NOT p.deleted
+						GROUP BY ce.tx_dce_dce
+						ORDER BY ce.tx_dce_dce
+					");
+					$query->execute();
+					$query->setFetchMode(\PDO::FETCH_ASSOC);
+					$data = $query->fetchAll();
+
+
+					if (is_array($data) && count($data))  {
+						$sectionContent = '';
+						
+						// generate html output
+						$sectionContent .= '<table class="item-types-summary  mono">'.LF;
+						$sectionContent .=   '<tr>'.LF;
+						$sectionContent .=      '<th>'. 'tx_dce_dce:' .'</th>'.LF;
+						$sectionContent .=      '<th>'. 'count:' .'</th>'.LF;
+						$sectionContent .=      '<th>'. 'pids:' .'</th>'.LF;
+						$sectionContent .=   '</tr>'.LF;
+						
+						
+						foreach ($data as $item) {
+							$sectionContent .= '<tr>'.LF;
+							$sectionContent .=   '<td><a href="'. $this->urlAction('analyseRootline', ['groupKey' => 'tx_dce_dce', 'value' => $item['tx_dce_dce'], 'itemType' => 'content']) .'" target="_blank">'. $item['tx_dce_dce'] .' <br> '. $item['dce_title'] .'</a></td>'.LF;
+							$sectionContent .=   '<td>'. $item['count_use'] .'</td>'.LF;
+							$pidsLinked = [];
+							foreach (explode(', ', $item['pids']) as $i => $pid)  {
+								$pidsLinked[] =     '<a href="'. $this->urlSite($pid) .'" target="_blank">'. $pid .'</a>'.LF;
+							}
+							$sectionContent .=   '<td class="pids">'. implode(' ', $pidsLinked) .'</td>'.LF;
+							$sectionContent .= '</tr>'.LF;
+						}
+						
+						$sectionContent .= '</table>'.LF;
+						$this->setOutputContent('summary', self::CE_DCE, $sectionContent);
+						$this->data[self::CE_DCE] = $data;
+						$this->debug[self::CE_DCE]['sql'] = $query->queryString;
+					}
+				}
+			}
+
 		} catch(\PDOException $e) {
 			$this->messages[] = "SQL/PDO Error: " . $e->getMessage();
 		}
@@ -773,7 +843,7 @@ class ContentSummary	{
 		$_l = parse_url($urlLinkBase);
 		$url = $urlLinkBase . ($_l['query']?'&':'?');
 
-		$params = ['action' => $action] + $params;
+		$params = ['action' => $action] + $params + ['t' => time()];
 
 		$paramPairs = [];
 		foreach ($params as $param => $value)	{
@@ -799,7 +869,7 @@ class ContentSummary	{
 
         $availableGroupKeys = [
         	'page' => [$this->TV_PREFIX.'_ds', $this->TV_PREFIX.'_to', 'tx_fed_page_controller_action', 'tx_fed_page_controller_action_sub'],
-        	'content' => ['CType', 'list_type', $this->TV_PREFIX.'_ds', $this->TV_PREFIX.'_to', $this->TT_FRAME, 'imageorient', 'header_layout'],
+        	'content' => ['CType', 'list_type', $this->TV_PREFIX.'_ds', $this->TV_PREFIX.'_to', 'tx_dce_dce', $this->TT_FRAME, 'imageorient', 'header_layout'],
 		];
 	    $tableFieldGroupKey = in_array($_GET['groupKey'], $availableGroupKeys[$itemType]) ? $_GET['groupKey'] : 'INVALID_GROUP_FIELD_KEY';		// will cause sql error, and ok
 	    $additionalWhere_custom = $_GET['additionalWhere'];
@@ -811,8 +881,9 @@ class ContentSummary	{
 
 
 
-		$sectionHeader = '<h3>Item type: <b>'.strtoupper($itemType).'</b></h3>';
+		$sectionHeader = '';
 	    $sectionContent = '';
+	    $additionalSubheader = '';
 	    $pidsContainingSuchItems = [];
 	    // additional fields to read from database when building rootline items
 	    $addFieldsSelect = [];
@@ -821,13 +892,7 @@ class ContentSummary	{
 
 	    switch ($itemType)	{
 			case 'content':
-				$sectionHeader .= '<h2><i>' . htmlspecialchars($tableFieldGroupKey) . ' = ' . htmlspecialchars($value) . '</i>'
-									. ($additionalWhere_custom ? '<br><i>' . $additionalWhere_custom . '</i>' : '')
-									. '</h2>';
-				$sectionHeader .= '<h4><i>Look up the tree for visibility of grandparents of pages containing these items</i></h4>';
-				$sectionHeader .= '<p class="small"><i>If all of these rootlines contains unavailable pages on any level, it may mean that this content type is not available to public anymore.<br>'
-									. 'Remember they could still be referenced somewhere in typoscript, fluid templates or other extensions.</i></p>';
-
+				
 	    		// collect all pids with records with such values
 				try {
 					if ($tableFieldGroupKey == $this->TV_PREFIX.'_ds') {
@@ -835,17 +900,29 @@ class ContentSummary	{
 						$additionalWhere = ' AND CType = "'.$this->TV_CTYPE.'"';
 					}
                     if ($tableFieldGroupKey == 'list_type') {
-						// filter contents with stored ds but are edited and not anymore of type fce
+						// filter contents with stored list type but are edited and not anymore of type list
 						$additionalWhere = ' AND CType = "list"';
 					}
 					if ($tableFieldGroupKey == 'imageorient') {
-						// filter contents with stored ds but are edited and not anymore of type fce
+						// filter contents with stored imageorient but are edited and not anymore of type textpic
 						$additionalWhere = ' AND CType = "textpic"';
 					}
+					if ($tableFieldGroupKey == 'tx_dce_dce') {
+						// filter contents with stored dce uid but are edited and not anymore of type dce[n]
+						$additionalWhere = ' AND CType LIKE "dce_dceuid%"';
+						
+						// retrieve and display additional info, like dce title etc. 
+                        $query = $this->db->prepare("
+                            SELECT *  FROM `tx_dce_domain_model_dce`  dce
+                            WHERE  dce.uid = {intval($value)}
+                        ");
+                        $query->execute();
+                        $query->setFetchMode(\PDO::FETCH_ASSOC);
+                        $typeOriginRow = $query->fetch();
+                        $additionalSubheader = 'DCE name: ' . $typeOriginRow['title'];
+					}
 
-                    if ($additionalWhere)   {
-                        $sectionHeader .= '<p class="mono"><i>Additional WHERE used: <b>'.$additionalWhere.'</b></i></p>';
-                    }
+
 
 					$query = $this->db->prepare("
 						SELECT ce.pid,
@@ -864,6 +941,21 @@ class ContentSummary	{
 				} catch(\PDOException $e) {
 					$this->messages[] = "Error: " . $e->getMessage();
 				}
+
+
+				$sectionHeader .= '<h3>Item type: <b>'.strtoupper($itemType).'</b></h3>';
+				$sectionHeader .= '<h2><i>' . htmlspecialchars($tableFieldGroupKey) . ' = ' . htmlspecialchars($value) . '</i>'
+									. ($additionalWhere_custom ? '<br><i>' . $additionalWhere_custom . '</i>' : '')
+									. '</h2>';
+				$sectionHeader .= $additionalSubheader ? '<h3>' . $additionalSubheader . '</h3>' : '';
+				$sectionHeader .= '<h4><i>Look up the tree for visibility of grandparents of pages containing these items</i></h4>';
+				$sectionHeader .= '<p class="small"><i>If all of these rootlines contains unavailable pages on any level, it may mean that this content type is not available to public anymore.<br>'
+									. 'Remember they could still be referenced somewhere in typoscript, fluid templates or other extensions.</i></p>';
+
+				if ($additionalWhere)   {
+					$sectionHeader .= '<p class="mono"><i>Additional WHERE used: <b>'.$additionalWhere.'</b></i></p>';
+				}
+				
 				break;
 
 
@@ -1323,6 +1415,11 @@ class ContentSummary	{
 				$output .= $this->getOutputContent('summary', self::CE_TEMPLAVOILA_TO);
 			}
 			
+			if (in_array(self::CE_DCE, $this->config['makeSummaryFor']))   {
+				$output .= '<h2 class="mono">tt_content - DCE:</h2>'.LF;
+				$output .= $this->getOutputContent('summary', self::CE_DCE);
+			}
+			
 			if (in_array(self::PAGE_TEMPLAVOILA_DS, $this->config['makeSummaryFor']))   {
 				$output .= '<h2 class="mono">pages - Templavoila DS:</h2>'.LF;
 				$output .= '<p title="I really couldn\'t find better solution for that query"><i>(grouped by pairs _ds + _next_ds)</i></p>'.LF;
@@ -1551,6 +1648,22 @@ class ContentSummary	{
 			foreach ($this->data[self::CE_TEMPLAVOILA_TO] as $row)  {
 				fputcsv($csvHandle, [
 						$row[$this->TV_PREFIX.'_to'] . ' / '. $row['to_title'],
+						$row['count_use'],
+						$row['pids']
+				]);
+			}
+		}
+		
+		
+		// DCE
+		if (is_array($this->data[self::CE_DCE])  &&  count($this->data[self::CE_DCE]))    {
+			// leave 4 empty rows
+			for ($i=0; $i<=3; $i++)		fputcsv($csvHandle, []);
+			
+			fputcsv($csvHandle, ['tt_content: DCE types:', 'count_use:', 'pids:']);
+			foreach ($this->data[self::CE_DCE] as $row)  {
+				fputcsv($csvHandle, [
+						$row['tx_dce_dce'] . ' / '. $row['dce_title'],
 						$row['count_use'],
 						$row['pids']
 				]);
@@ -1845,7 +1958,7 @@ $css
 
 	<br>
 	<p class="mono">ContentSummary v$version<br>
-	<a href="https://wolo.pl/">wps</a> / Binary Owl Forever '.' 2021</p>
+	<a href="https://wolo.pl/">wps</a> / Binary Owl Forever '.' 2023</p>
 </body>
 </html>
 EOD;

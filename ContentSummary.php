@@ -2,15 +2,15 @@
 /**
  * ContentSummary - record types use cases tracker for TYPO3
  *  
- * v0.14
- * WTP / wolo.pl '.' studio 2023
+ * v0.15
+ * WTP / wolo.pl '.' studio 2024
  * 
  * https://github.com/w010/contentsummary
  */
 
 namespace WTP;
 
-const CONTENT_SUMMARY_VERSION = '0.14.0';
+const CONTENT_SUMMARY_VERSION = '0.15.0';
 
 /** - Prepare a clear table of found content types, plugins, FCEs, frames.
  * - What is used where and how many of them (...you'll have to repair, if it breaks during update.)
@@ -35,13 +35,13 @@ const CONTENT_SUMMARY_VERSION = '0.14.0';
 // By default, this script operates standalone and prints output, but it may also be included externally, to use its calculated data.
 // To do this, before inclusion set config value 'mode_include' => 1
 // and then instantiate passing config array
-if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
+if (!isset($GLOBALS['ContentSummaryConfig']['mode_include']) || $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 
 	// Uncomment when needed
-//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'project_app';
-//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'mysql';
-//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'www_devel';
-//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'www_devel';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['user'] = 'db';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['password'] = 'db';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['host'] = 'db';
+//	$GLOBALS['TYPO3_CONF_VARS']['DB']['Connections']['Default']['dbname'] = 'db';
 
 
 
@@ -66,7 +66,7 @@ if (! $GLOBALS['ContentSummaryConfig']['mode_include'])	{
 	];
 
 
-	error_reporting(E_ALL ^ E_WARNING ^ E_NOTICE);
+	error_reporting(E_ALL & ~(E_STRICT | E_NOTICE | E_COMPILE_WARNING | E_COMPILE_ERROR | E_CORE_WARNING | E_CORE_ERROR | E_PARSE | E_ERROR | E_DEPRECATED | E_USER_DEPRECATED | E_WARNING | E_USER_ERROR | E_USER_NOTICE | E_USER_WARNING));
 }
 
 
